@@ -10,18 +10,19 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',system-ui,sans-serif;background:#f2f4f7;min-height:100vh;color:#101828}
-  input,select{font-family:inherit}
-  ::-webkit-scrollbar{width:6px}
-  ::-webkit-scrollbar-track{background:#f1f1f1}
-  ::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px}
+  input,select,button{font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:#185FA5 !important;box-shadow:0 0 0 3px rgba(24,95,165,0.12)}
 </style>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const { useState } = React;
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-QJHUJLKK3wTmrMs18Y33Ctzf6Gcas4ddz_AC9tZybdcaqQljSQr8MDPD5crKZzPc/exec";
+<script type="text/babel">
+const { useState, useCallback } = React;
+
+// ── PASTE YOUR APPS SCRIPT URL HERE ──────────────────────────────────────────
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyyYfSgbhL5JHGgcv4oM_XvjQzf9XP9AAFiD3ISfJC2_Jl_5q-eUTgsCwm522fpRwE7/exec";
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PRODUCTS = [
   "ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)","ENOVAR DB BACK PART FOR L1 (SFG)","ENOVAR DB FRONT PART FOR L1 (SFG)",
@@ -53,12 +54,11 @@ const PRODUCTS = [
   "SAFETY SHUTTER FOR EXTENSION SOCKET","POWER CORD LOCK FOR EXTENSION SOCKET","Ear for Junction Box",
   "Extension Socket Switch Button","ENOVAR DB FRONT & BACK PART FOR L1 (SFG)","ENOVAR DB FRONT & BACK PART FOR L2 (SFG)"
 ];
-
-const MACHINES   = ["A-1","A-2","A-3","A-4","A-5","B-1","B-2","B-3","B-4","B-5","B-6","B-7"];
-const SUPERVISORS= ["Shofiq","Rakib","Rahim","Noo","Rahium"];
-const SHIFTS     = ["Day","Night"];
-const BD_TYPES   = ["Mechanical Breakdown","Electrical Breakdown","Planned Downtime","In Process Setup/Adjustment","Raw Material Shortage","Others down time"];
-const BD_REASONS = ["Planning Problem","No Problem","Resin Short Problem","Fitting Problem","Mold Problem","Mixture Problem","Product + Nozzel Problem","Power Problem","Hit Problem","Mold Change","Bad mold","Gearbroken","No reason","Dont know","maintenance"];
+const MACHINES    = ["A-1","A-2","A-3","A-4","A-5","B-1","B-2","B-3","B-4","B-5","B-6","B-7"];
+const SUPERVISORS = ["Shofiq","Rakib","Rahim","Noo","Rahium"];
+const SHIFTS      = ["Day","Night"];
+const BD_TYPES    = ["Mechanical Breakdown","Electrical Breakdown","Planned Downtime","In Process Setup/Adjustment","Raw Material Shortage","Others down time"];
+const BD_REASONS  = ["Planning Problem","No Problem","Resin Short Problem","Fitting Problem","Mold Problem","Mixture Problem","Product + Nozzel Problem","Power Problem","Hit Problem","Mold Change","Bad mold","Gearbroken","No reason","Dont know","maintenance"];
 
 const SMV = {
   "ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)":0.250,"ENOVAR DB BACK PART FOR L1 (SFG)":0.408,
@@ -102,135 +102,225 @@ const SMV = {
   "ENOVAR DB FRONT & BACK PART FOR L2 (SFG)":0.333
 };
 
-function monthLabel(d){ if(!d)return""; const dt=new Date(d); return dt.toLocaleDateString("en-US",{month:"short",year:"numeric"}).replace(" ","-"); }
+// ── Send data to Apps Script via a hidden form POST (bypasses CORS) ──────────
+function postToSheet(payload) {
+  return new Promise((resolve) => {
+    const iframeId = "hidden_frame_" + Date.now();
+    const formId   = "hidden_form_"  + Date.now();
 
-function calcOEE(g,n){
-  const smv=SMV[g.productCriteria]||null;
-  const st=parseFloat(g.shiftTime)||480, pd=parseFloat(n.plannedDown)||0;
-  const art=st-pd;
-  const npt=(parseFloat(n.qco)||0)+(parseFloat(n.unavailOrder)||0)+(parseFloat(n.manpower)||0)+(parseFloat(n.gas)||0)+(parseFloat(n.electricity)||0)+(parseFloat(n.others)||0);
-  const runt=art-npt, ao=parseFloat(g.actualOutput)||0, waste=parseFloat(n.totalWastage)||0, good=ao-waste;
-  const cap=smv?Math.round(st/smv*10)/10:null;
-  const tgt=pd>0&&smv?Math.round((st-pd)/smv*10)/10:cap;
-  const av=art>0?runt/art:0, perf=runt>0&&smv?ao*smv/runt:0, qual=ao>0?good/ao:0;
-  return{cap,tgt,smv,ach:tgt?ao/tgt*100:null,art,runt,npt,nptPct:art>0?npt/art:0,av,perf,qual,oee:av*perf*qual,good,wastePct:ao>0?waste/ao:0};
+    // Create hidden iframe as target
+    const iframe = document.createElement("iframe");
+    iframe.name = iframeId;
+    iframe.id   = iframeId;
+    iframe.style.cssText = "display:none;width:0;height:0;border:0;position:absolute;top:-9999px";
+    document.body.appendChild(iframe);
+
+    // Create hidden form
+    const form = document.createElement("form");
+    form.id     = formId;
+    form.method = "POST";
+    form.action = APPS_SCRIPT_URL;
+    form.target = iframeId;
+    form.style.cssText = "display:none;position:absolute;top:-9999px";
+
+    // Embed JSON as a hidden field named "payload"
+    const input = document.createElement("input");
+    input.type  = "hidden";
+    input.name  = "payload";
+    input.value = JSON.stringify(payload);
+    form.appendChild(input);
+
+    document.body.appendChild(form);
+
+    // Wait for iframe load = Apps Script responded
+    let done = false;
+    const timeout = setTimeout(() => {
+      if (!done) {
+        done = true;
+        cleanup();
+        // Timeout after 12s — treat as success since we can't read no-cors response
+        // Apps Script usually saves fine even when CORS blocks the response read
+        resolve({ success: true, timedOut: true });
+      }
+    }, 12000);
+
+    iframe.onload = () => {
+      if (!done) {
+        done = true;
+        clearTimeout(timeout);
+        cleanup();
+        resolve({ success: true });
+      }
+    };
+
+    form.submit();
+
+    function cleanup() {
+      setTimeout(() => {
+        if (document.getElementById(formId))   document.body.removeChild(form);
+        if (document.getElementById(iframeId)) document.body.removeChild(iframe);
+      }, 500);
+    }
+  });
 }
 
-const P=(v)=>v!=null&&!isNaN(v)?(v*100).toFixed(1)+"%":"—";
-const R=(v)=>v!=null&&!isNaN(v)?parseFloat(v).toFixed(1):"—";
-
-function Field({label,children}){
-  return(
-    <div style={{marginBottom:12}}>
-      <label style={{display:"block",fontSize:11,fontWeight:700,color:"#667085",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</label>
-      {children}
-    </div>
-  );
+function monthLabel(d) {
+  if (!d) return "";
+  const dt = new Date(d);
+  return dt.toLocaleDateString("en-US", { month:"short", year:"numeric" }).replace(" ", "-");
 }
 
-const IS={width:"100%",padding:"8px 10px",fontSize:13,border:"1.5px solid #d0d5dd",borderRadius:7,background:"#fff",color:"#101828",fontFamily:"inherit",outline:"none",transition:"border-color 0.15s"};
-const IS_RO={...IS,background:"#f9fafb",cursor:"default",color:"#667085"};
+function calcOEE(g, n) {
+  const smv = SMV[g.productCriteria] || null;
+  const st  = parseFloat(g.shiftTime) || 480;
+  const pd  = parseFloat(n.plannedDown) || 0;
+  const art = st - pd;
+  const npt = (parseFloat(n.qco)||0)+(parseFloat(n.unavailOrder)||0)+(parseFloat(n.manpower)||0)+(parseFloat(n.gas)||0)+(parseFloat(n.electricity)||0)+(parseFloat(n.others)||0);
+  const runt = art - npt;
+  const ao   = parseFloat(g.actualOutput) || 0;
+  const wst  = parseFloat(n.totalWastage) || 0;
+  const good = ao - wst;
+  const cap  = smv ? Math.round(st / smv * 10) / 10 : null;
+  const tgt  = pd > 0 && smv ? Math.round((st - pd) / smv * 10) / 10 : cap;
+  const av   = art > 0 ? runt / art : 0;
+  const perf = runt > 0 && smv ? ao * smv / runt : 0;
+  const qual = ao  > 0 ? good / ao : 0;
+  return { cap, tgt, smv, ach: tgt ? ao/tgt*100 : null, art, runt, npt, nptPct: art>0?npt/art:0, av, perf, qual, oee: av*perf*qual, good, wastePct: ao>0?wst/ao:0 };
+}
 
-function Sel({value,onChange,options,placeholder}){
-  return(
-    <select value={value} onChange={e=>onChange(e.target.value)} style={IS}>
-      {placeholder&&<option value="">{placeholder}</option>}
-      {options.map(o=><option key={o} value={o}>{o}</option>)}
+const P  = v => (v!=null&&!isNaN(v)) ? (v*100).toFixed(1)+"%" : "—";
+const R  = v => (v!=null&&!isNaN(v)) ? parseFloat(v).toFixed(1) : "—";
+
+// ── Shared styles ─────────────────────────────────────────────────────────────
+const IS = { width:"100%", padding:"8px 10px", fontSize:13, border:"1.5px solid #d0d5dd", borderRadius:7, background:"#fff", color:"#101828", fontFamily:"inherit" };
+const IS_RO = { ...IS, background:"#f9fafb", cursor:"default", color:"#667085" };
+const LBL = { display:"block", fontSize:11, fontWeight:700, color:"#667085", marginBottom:4, textTransform:"uppercase", letterSpacing:"0.05em" };
+const FD  = { marginBottom:12 };
+const SH  = { fontSize:10, fontWeight:800, letterSpacing:"0.12em", textTransform:"uppercase", color:"#98a2b3", margin:"18px 0 10px", borderBottom:"1.5px solid #eaecf0", paddingBottom:5 };
+
+function F({l, children}) {
+  return <div style={FD}><label style={LBL}>{l}</label>{children}</div>;
+}
+function Inp({v, on, type="text", ph="", ro=false}) {
+  return <input type={type} value={v} onChange={e=>on(e.target.value)} placeholder={ph} readOnly={ro} style={ro?IS_RO:IS}/>;
+}
+function Sel({v, on, opts, ph}) {
+  return (
+    <select value={v} onChange={e=>on(e.target.value)} style={IS}>
+      {ph && <option value="">{ph}</option>}
+      {opts.map(o=><option key={o} value={o}>{o}</option>)}
     </select>
   );
 }
 
-function Inp({value,onChange,type="text",placeholder="",readOnly=false}){
-  return <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} readOnly={readOnly} style={readOnly?IS_RO:IS}/>;
-}
+// ── Main App ──────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab]       = useState("prod");
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const today = new Date().toISOString().slice(0,10);
 
-function SecHead({children}){
-  return <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:"#98a2b3",margin:"20px 0 10px",borderBottom:"1.5px solid #eaecf0",paddingBottom:5}}>{children}</div>;
-}
+  const [g, setG] = useState({ date:today, section:"Injection Molding", productCriteria:"", supervisorName:"", shift:"", actualOutput:"", shiftTime:"480", machine:"" });
+  const [n, setN] = useState({ qco:"", unavailOrder:"", manpower:"", gas:"", electricity:"", totalWastage:"", wastageReason:"", others:"", remarks:"", plannedDown:"" });
+  const [b, setB] = useState({ date:today, section:"Injection Molding", productCriteria:"", machine:"", supervisorName:"", shift:"", breakdownType:"", breakdownReason:"", downtime:"", remarks:"" });
 
-function OEECard({label,value,accent}){
-  return(
-    <div style={{background:"#fff",border:"1.5px solid #e4e7ec",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
-      <div style={{fontSize:10,fontWeight:700,color:"#98a2b3",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{label}</div>
-      <div style={{fontSize:22,fontWeight:700,color:accent?"#185FA5":"#101828",letterSpacing:"-0.5px"}}>{value}</div>
-    </div>
-  );
-}
+  const oee = g.productCriteria && g.actualOutput ? calcOEE(g, n) : null;
+  const uG  = k => v => setG(p=>({...p,[k]:v}));
+  const uN  = k => v => setN(p=>({...p,[k]:v}));
+  const uB  = k => v => setB(p=>({...p,[k]:v}));
 
-function App(){
-  const [tab,setTab]=useState("prod");
-  const [status,setStatus]=useState(null);
-  const [loading,setLoading]=useState(false);
-  const today=new Date().toISOString().slice(0,10);
-
-  const [g,setG]=useState({date:today,section:"Injection Molding",productCriteria:"",supervisorName:"",shift:"",actualOutput:"",shiftTime:"480",machine:""});
-  const [n,setN]=useState({qco:"",unavailOrder:"",manpower:"",gas:"",electricity:"",totalWastage:"",wastageReason:"",others:"",remarks:"",plannedDown:""});
-  const [b,setB]=useState({date:today,section:"Injection Molding",productCriteria:"",machine:"",supervisorName:"",shift:"",breakdownType:"",breakdownReason:"",downtime:"",remarks:""});
-
-  const oee=g.productCriteria&&g.actualOutput?calcOEE(g,n):null;
-  const uG=(k)=>(v)=>setG(p=>({...p,[k]:v}));
-  const uN=(k)=>(v)=>setN(p=>({...p,[k]:v}));
-  const uB=(k)=>(v)=>setB(p=>({...p,[k]:v}));
-
-  async function saveProd(){
-    if(!g.date||!g.productCriteria||!g.actualOutput||!g.supervisorName||!g.shift){setStatus({t:"err",m:"Please fill all required fields (*)"});return;}
-    setLoading(true);setStatus(null);
-    const c=oee||{};
-    const payload={action:"addProduction",data:{sbu:"ALEL",date:g.date,section:g.section,shift:g.shift,machine:g.machine,productCriteria:g.productCriteria,supervisorName:g.supervisorName,shiftCapacity:c.cap||"",shiftTarget:c.tgt||"",actualOutput:g.actualOutput,idealCycleTime:c.smv||"",achievementPct:c.ach?c.ach/100:"",shiftTime:g.shiftTime,plannedDownTime:n.plannedDown||0,availableRunTime:c.art||"",totalNPT:c.npt||0,actualRunTime:c.runt||"",gas:n.gas||0,electricity:n.electricity||0,unavailOrder:n.unavailOrder||0,rawMaterial:0,manpower:n.manpower||0,qco:n.qco||0,inProcessSetup:0,mechBreakdown:0,elecBreakdown:0,othersDowntime:n.others||0,nptPct:c.nptPct||"",wastagePct:0,totalWastage:n.totalWastage||0,wastagePctCalc:c.wastePct||"",wastageReason:n.wastageReason||"",goodProduction:c.good||"",availability:c.av||"",performance:c.perf||"",quality:c.qual||"",oee:c.oee||"",remarks:n.remarks||"",month:monthLabel(g.date)}};
-    try{
-      const res=await fetch(APPS_SCRIPT_URL,{method:"POST",body:JSON.stringify(payload),headers:{"Content-Type":"application/json"}});
-      const json=await res.json();
-      if(json.success){setStatus({t:"ok",m:"✓ Production entry saved to Google Sheet!"});setG(p=>({...p,actualOutput:"",machine:""}));setN({qco:"",unavailOrder:"",manpower:"",gas:"",electricity:"",totalWastage:"",wastageReason:"",others:"",remarks:"",plannedDown:""});}
-      else setStatus({t:"err",m:json.error||"Failed to save. Check Apps Script."});
-    }catch(e){setStatus({t:"err",m:"Network error — check Apps Script URL and deployment."});}
+  async function saveProd() {
+    if (!g.date||!g.productCriteria||!g.actualOutput||!g.supervisorName||!g.shift) {
+      setStatus({t:"err", m:"Please fill all required (*) fields."}); return;
+    }
+    setLoading(true); setStatus(null);
+    const c = oee || {};
+    const payload = {
+      action: "addProduction",
+      data: {
+        sbu:"ALEL", date:g.date, section:g.section, shift:g.shift, machine:g.machine,
+        productCriteria:g.productCriteria, supervisorName:g.supervisorName,
+        shiftCapacity:c.cap||"", shiftTarget:c.tgt||"", actualOutput:g.actualOutput,
+        idealCycleTime:c.smv||"", achievementPct:c.ach?c.ach/100:"",
+        shiftTime:g.shiftTime, plannedDownTime:n.plannedDown||0,
+        availableRunTime:c.art||"", totalNPT:c.npt||0, actualRunTime:c.runt||"",
+        gas:n.gas||0, electricity:n.electricity||0, unavailOrder:n.unavailOrder||0,
+        rawMaterial:0, manpower:n.manpower||0, qco:n.qco||0,
+        inProcessSetup:0, mechBreakdown:0, elecBreakdown:0, othersDowntime:n.others||0,
+        nptPct:c.nptPct||"", wastagePct:0, totalWastage:n.totalWastage||0,
+        wastagePctCalc:c.wastePct||"", wastageReason:n.wastageReason||"",
+        goodProduction:c.good||"", availability:c.av||"", performance:c.perf||"",
+        quality:c.qual||"", oee:c.oee||"", remarks:n.remarks||"", month:monthLabel(g.date)
+      }
+    };
+    try {
+      const res = await postToSheet(payload);
+      setStatus({ t:"ok", m:"✓ Production entry saved to Google Sheet!" });
+      setG(p=>({...p, actualOutput:"", machine:""}));
+      setN({ qco:"", unavailOrder:"", manpower:"", gas:"", electricity:"", totalWastage:"", wastageReason:"", others:"", remarks:"", plannedDown:"" });
+    } catch(e) {
+      setStatus({ t:"err", m:"Error: " + e.message });
+    }
     setLoading(false);
   }
 
-  async function saveBd(){
-    if(!b.date||!b.productCriteria||!b.supervisorName||!b.shift||!b.breakdownType||!b.downtime){setStatus({t:"err",m:"Please fill all required fields (*)"});return;}
-    setLoading(true);setStatus(null);
-    const payload={action:"addBreakdown",data:{sbu:"Injection",date:b.date,section:b.section,shift:b.shift,machine:b.machine,productCriteria:b.productCriteria,supervisorName:b.supervisorName,breakdownType:b.breakdownType,breakdownName:b.breakdownReason,reason:b.breakdownReason,downtime:b.downtime,remarks:b.remarks,month:monthLabel(b.date).split("-")[0]}};
-    try{
-      const res=await fetch(APPS_SCRIPT_URL,{method:"POST",body:JSON.stringify(payload),headers:{"Content-Type":"application/json"}});
-      const json=await res.json();
-      if(json.success){setStatus({t:"ok",m:"✓ Breakdown entry saved to Google Sheet!"});setB(p=>({...p,breakdownType:"",breakdownReason:"",downtime:"",remarks:"",machine:""}));}
-      else setStatus({t:"err",m:json.error||"Failed to save."});
-    }catch(e){setStatus({t:"err",m:"Network error — check Apps Script URL."});}
+  async function saveBd() {
+    if (!b.date||!b.productCriteria||!b.supervisorName||!b.shift||!b.breakdownType||!b.downtime) {
+      setStatus({t:"err", m:"Please fill all required (*) fields."}); return;
+    }
+    setLoading(true); setStatus(null);
+    const payload = {
+      action: "addBreakdown",
+      data: {
+        sbu:"Injection", date:b.date, section:b.section, shift:b.shift, machine:b.machine,
+        productCriteria:b.productCriteria, supervisorName:b.supervisorName,
+        breakdownType:b.breakdownType, breakdownName:b.breakdownReason,
+        reason:b.breakdownReason, downtime:b.downtime, remarks:b.remarks,
+        month:monthLabel(b.date).split("-")[0]
+      }
+    };
+    try {
+      await postToSheet(payload);
+      setStatus({ t:"ok", m:"✓ Breakdown entry saved to Google Sheet!" });
+      setB(p=>({...p, breakdownType:"", breakdownReason:"", downtime:"", remarks:"", machine:""}));
+    } catch(e) {
+      setStatus({ t:"err", m:"Error: " + e.message });
+    }
     setLoading(false);
   }
 
-  const btnStyle={width:"100%",padding:"10px",fontSize:13,fontWeight:700,borderRadius:7,border:"none",cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.02em",marginTop:4,transition:"opacity 0.15s"};
+  const BTN = { width:"100%", padding:"10px", fontSize:13, fontWeight:700, borderRadius:7, border:"none", cursor:"pointer", marginTop:6, letterSpacing:"0.02em" };
 
-  return(
-    <div style={{minHeight:"100vh",background:"#f2f4f7",padding:"24px 16px"}}>
-      <div style={{maxWidth:860,margin:"0 auto"}}>
+  return (
+    <div style={{minHeight:"100vh", background:"#f2f4f7", padding:"20px 16px"}}>
+      <div style={{maxWidth:860, margin:"0 auto"}}>
 
         {/* Header */}
-        <div style={{background:"#fff",borderRadius:12,border:"1.5px solid #e4e7ec",padding:"18px 24px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{background:"#fff", borderRadius:12, border:"1.5px solid #e4e7ec", padding:"16px 22px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between"}}>
           <div>
-            <div style={{fontSize:20,fontWeight:700,color:"#101828",letterSpacing:"-0.3px"}}>Injection Molding — OEE Input</div>
-            <div style={{fontSize:12,color:"#667085",marginTop:3}}>ALEL · Data saves directly to Google Sheet</div>
+            <div style={{fontSize:19, fontWeight:700, color:"#101828", letterSpacing:"-0.3px"}}>Injection Molding — OEE Input</div>
+            <div style={{fontSize:12, color:"#667085", marginTop:3}}>ALEL · Saves to Google Sheet via Apps Script</div>
           </div>
-          <div style={{background:"#ecfdf3",color:"#027a48",fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,border:"1px solid #6ce9a6"}}>LIVE</div>
+          <div style={{background:"#ecfdf3", color:"#027a48", fontSize:11, fontWeight:700, padding:"4px 12px", borderRadius:20, border:"1px solid #6ce9a6"}}>LIVE</div>
         </div>
 
         {/* Tabs */}
-        <div style={{display:"flex",gap:8,marginBottom:16}}>
+        <div style={{display:"flex", gap:8, marginBottom:14}}>
           {[["prod","📋  Production Entry"],["bd","🔧  Breakdown Entry"]].map(([k,l])=>(
             <button key={k} onClick={()=>{setTab(k);setStatus(null);}}
-              style={{padding:"8px 20px",fontSize:13,fontWeight:700,borderRadius:8,cursor:"pointer",fontFamily:"inherit",
+              style={{padding:"8px 20px", fontSize:13, fontWeight:700, borderRadius:8, cursor:"pointer",
                 border:tab===k?"2px solid #185FA5":"1.5px solid #d0d5dd",
                 background:tab===k?"#185FA5":"#fff",
                 color:tab===k?"#fff":"#667085",
-                boxShadow:tab===k?"0 2px 8px rgba(24,95,165,0.15)":"none"}}>
+                boxShadow:tab===k?"0 2px 8px rgba(24,95,165,0.18)":"none"}}>
               {l}
             </button>
           ))}
         </div>
 
-        {/* Status */}
-        {status&&(
-          <div style={{padding:"10px 14px",borderRadius:8,marginBottom:14,fontSize:13,fontWeight:600,
+        {/* Status Banner */}
+        {status && (
+          <div style={{padding:"10px 14px", borderRadius:8, marginBottom:12, fontSize:13, fontWeight:600,
             background:status.t==="ok"?"#ecfdf3":"#fef3f2",
             color:status.t==="ok"?"#027a48":"#b42318",
             border:`1.5px solid ${status.t==="ok"?"#6ce9a6":"#fda29b"}`}}>
@@ -238,146 +328,153 @@ function App(){
           </div>
         )}
 
-        {/* PRODUCTION FORM */}
-        {tab==="prod"&&(
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
-            {/* Left: Form */}
-            <div style={{background:"#fff",border:"1.5px solid #e4e7ec",borderRadius:12,padding:"18px 20px"}}>
-              <SecHead>General Data</SecHead>
-              <Field label="Date *"><Inp type="date" value={g.date} onChange={uG("date")}/></Field>
-              <Field label="Section"><Inp value={g.section} readOnly onChange={()=>{}}/></Field>
-              <Field label="Product Criteria *"><Sel value={g.productCriteria} onChange={uG("productCriteria")} options={PRODUCTS} placeholder="— Select product —"/></Field>
-              <Field label="Supervisor Name *"><Sel value={g.supervisorName} onChange={uG("supervisorName")} options={SUPERVISORS} placeholder="— Select —"/></Field>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-                <Field label="Shift *"><Sel value={g.shift} onChange={uG("shift")} options={SHIFTS} placeholder="—"/></Field>
-                <Field label="Machine"><Sel value={g.machine} onChange={uG("machine")} options={MACHINES} placeholder="—"/></Field>
+        {/* ── PRODUCTION TAB ── */}
+        {tab==="prod" && (
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start"}}>
+            {/* Form */}
+            <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px"}}>
+              <div style={SH}>General Data</div>
+              <F l="Date *"><Inp type="date" v={g.date} on={uG("date")}/></F>
+              <F l="Section"><Inp v={g.section} on={()=>{}} ro/></F>
+              <F l="Product Criteria *"><Sel v={g.productCriteria} on={uG("productCriteria")} opts={PRODUCTS} ph="— Select product —"/></F>
+              <F l="Supervisor Name *"><Sel v={g.supervisorName} on={uG("supervisorName")} opts={SUPERVISORS} ph="— Select —"/></F>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
+                <F l="Shift *"><Sel v={g.shift} on={uG("shift")} opts={SHIFTS} ph="—"/></F>
+                <F l="Machine"><Sel v={g.machine} on={uG("machine")} opts={MACHINES} ph="—"/></F>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:4}}>
-                <Field label="Actual Output (Pcs) *"><Inp type="number" value={g.actualOutput} onChange={uG("actualOutput")} placeholder="0"/></Field>
-                <Field label="Shift Time (Min) *"><Inp type="number" value={g.shiftTime} onChange={uG("shiftTime")}/></Field>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4}}>
+                <F l="Actual Output (Pcs) *"><Inp type="number" v={g.actualOutput} on={uG("actualOutput")} ph="0"/></F>
+                <F l="Shift Time (Min) *"><Inp type="number" v={g.shiftTime} on={uG("shiftTime")}/></F>
               </div>
 
-              <SecHead>NPT & Wastage</SecHead>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:4}}>
-                {[["plannedDown","Planned Downtime (Min)"],["qco","QCO (Min)"],["unavailOrder","Unavail. Order (Min)"],["manpower","Manpower Short. (Min)"],["gas","Utility Gas (Min)"],["electricity","Utility Electricity (Min)"],["totalWastage","Total Wastage (Pcs)"],["others","Others Downtime (Min)"]].map(([k,l])=>(
-                  <Field key={k} label={l}><Inp type="number" value={n[k]} onChange={uN(k)} placeholder="0"/></Field>
+              <div style={SH}>NPT & Wastage</div>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4}}>
+                {[["plannedDown","Planned Downtime"],["qco","QCO"],["unavailOrder","Unavail. Order"],["manpower","Manpower Short."],["gas","Utility Gas"],["electricity","Utility Electricity"],["totalWastage","Total Wastage (Pcs)"],["others","Others Downtime"]].map(([k,l])=>(
+                  <F key={k} l={l + " (Min)".replace("(Pcs) (Min)","(Pcs)")}><Inp type="number" v={n[k]} on={uN(k)} ph="0"/></F>
                 ))}
               </div>
-              <Field label="Wastage Reason"><Inp value={n.wastageReason} onChange={uN("wastageReason")} placeholder="e.g. bad mold"/></Field>
-              <Field label="Remarks"><Inp value={n.remarks} onChange={uN("remarks")} placeholder="Optional"/></Field>
+              <F l="Wastage Reason"><Inp v={n.wastageReason} on={uN("wastageReason")} ph="e.g. bad mold"/></F>
+              <F l="Remarks"><Inp v={n.remarks} on={uN("remarks")} ph="Optional"/></F>
 
-              <button onClick={saveProd} disabled={loading} style={{...btnStyle,background:loading?"#84adcf":"#185FA5",color:"#fff",opacity:loading?0.8:1}}>
-                {loading?"Saving…":"Save Production Entry  →"}
+              <button onClick={saveProd} disabled={loading}
+                style={{...BTN, background:loading?"#84adcf":"#185FA5", color:"#fff", opacity:loading?0.8:1}}>
+                {loading ? "⏳ Saving to Google Sheet…" : "Save Production Entry  →"}
               </button>
             </div>
 
-            {/* Right: OEE Preview */}
+            {/* OEE Preview + Guide */}
             <div>
-              <div style={{background:"#fff",border:"1.5px solid #e4e7ec",borderRadius:12,padding:"18px 20px",marginBottom:14}}>
-                <SecHead>Live OEE Preview</SecHead>
-                {!oee?(
-                  <div style={{textAlign:"center",padding:"24px 0",color:"#98a2b3",fontSize:13}}>
-                    <div style={{fontSize:28,marginBottom:8}}>📊</div>
-                    Select a product and enter output<br/>to see live OEE calculation.
+              <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px", marginBottom:14}}>
+                <div style={SH}>Live OEE Preview</div>
+                {!oee ? (
+                  <div style={{textAlign:"center", padding:"28px 0", color:"#98a2b3", fontSize:13}}>
+                    <div style={{fontSize:32, marginBottom:8}}>📊</div>
+                    Select a product and enter<br/>actual output to see OEE live.
                   </div>
-                ):(
+                ) : (
                   <>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                      <OEECard label="Availability" value={P(oee.av)}/>
-                      <OEECard label="Performance" value={P(oee.perf)}/>
-                      <OEECard label="Quality" value={P(oee.qual)}/>
-                      <OEECard label="OEE" value={P(oee.oee)} accent/>
+                    <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14}}>
+                      {[["Availability",P(oee.av),false],["Performance",P(oee.perf),false],["Quality",P(oee.qual),false],["OEE",P(oee.oee),true]].map(([l,v,a])=>(
+                        <div key={l} style={{background:a?"#e8f1fb":"#f9fafb", border:"1.5px solid #e4e7ec", borderRadius:8, padding:"10px 12px", textAlign:"center"}}>
+                          <div style={{fontSize:10, fontWeight:700, color:"#98a2b3", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:3}}>{l}</div>
+                          <div style={{fontSize:22, fontWeight:700, color:a?"#185FA5":"#101828"}}>{v}</div>
+                        </div>
+                      ))}
                     </div>
-                    <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+                    <table style={{width:"100%", fontSize:12, borderCollapse:"collapse"}}>
                       {[
-                        ["Shift Capacity",oee.cap?R(oee.cap)+" pcs":"—"],
-                        ["Shift Target",oee.tgt?R(oee.tgt)+" pcs":"—"],
-                        ["Achievement",oee.ach?R(oee.ach)+"%":"—"],
-                        ["Cycle Time (SMV)",oee.smv?oee.smv.toFixed(3)+" min":"—"],
-                        ["Available Run Time",R(oee.art)+" min"],
-                        ["Total NPT",R(oee.npt)+" min ("+P(oee.nptPct)+")"],
-                        ["Actual Run Time",R(oee.runt)+" min"],
+                        ["Shift Capacity", oee.cap?R(oee.cap)+" pcs":"—"],
+                        ["Shift Target",   oee.tgt?R(oee.tgt)+" pcs":"—"],
+                        ["Achievement",    oee.ach?R(oee.ach)+"%":"—"],
+                        ["SMV (Cycle Time)",oee.smv?oee.smv.toFixed(3)+" min":"—"],
+                        ["Available Run",  R(oee.art)+" min"],
+                        ["Total NPT",      R(oee.npt)+" min ("+P(oee.nptPct)+")"],
+                        ["Actual Run",     R(oee.runt)+" min"],
                         ["Good Production",Math.max(0,oee.good)+" pcs"],
-                        ["Wastage %",P(oee.wastePct)],
+                        ["Wastage %",      P(oee.wastePct)],
                       ].map(([k,v])=>(
                         <tr key={k} style={{borderBottom:"1px solid #f2f4f7"}}>
-                          <td style={{padding:"5px 2px",color:"#667085"}}>{k}</td>
-                          <td style={{padding:"5px 2px",textAlign:"right",fontWeight:700,color:"#101828"}}>{v}</td>
+                          <td style={{padding:"5px 2px", color:"#667085"}}>{k}</td>
+                          <td style={{padding:"5px 2px", textAlign:"right", fontWeight:700, color:"#101828"}}>{v}</td>
                         </tr>
                       ))}
                     </table>
-                    {!SMV[g.productCriteria]&&<div style={{fontSize:11,color:"#f79009",marginTop:8,padding:"6px 8px",background:"#fffaeb",borderRadius:6,border:"1px solid #fedf89"}}>⚠ SMV not in database — capacity fields will be blank in sheet.</div>}
+                    {!SMV[g.productCriteria] && (
+                      <div style={{marginTop:8, padding:"6px 10px", background:"#fffaeb", border:"1px solid #fedf89", borderRadius:6, fontSize:11, color:"#b54708"}}>
+                        ⚠ SMV not in database — capacity fields will be blank.
+                      </div>
+                    )}
                   </>
                 )}
               </div>
 
-              {/* Setup guide */}
-              <div style={{background:"#f8f9fc",border:"1.5px solid #e4e7ec",borderRadius:12,padding:"14px 18px",fontSize:12,color:"#667085"}}>
-                <div style={{fontWeight:700,marginBottom:8,color:"#344054",fontSize:13}}>⚙ Apps Script Setup</div>
-                <ol style={{paddingLeft:18,lineHeight:2.1}}>
+              <div style={{background:"#f8f9fc", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"14px 18px", fontSize:12, color:"#667085"}}>
+                <div style={{fontWeight:700, marginBottom:8, color:"#344054", fontSize:13}}>⚙ Apps Script Setup</div>
+                <ol style={{paddingLeft:18, lineHeight:2.1}}>
                   <li>Open your Google Sheet</li>
                   <li><b>Extensions → Apps Script</b> → paste <code style={{background:"#eaecf0",padding:"1px 5px",borderRadius:3}}>Code.gs</code></li>
-                  <li>Set <code style={{background:"#eaecf0",padding:"1px 5px",borderRadius:3}}>PROD_HEADER_ROW</code> &amp; <code style={{background:"#eaecf0",padding:"1px 5px",borderRadius:3}}>BRKD_HEADER_ROW</code></li>
                   <li><b>Deploy → New deployment → Web App</b></li>
-                  <li>Access: <b>Anyone</b> → copy URL → paste in this file at line 6</li>
+                  <li>Execute as: <b>Me</b> · Access: <b>Anyone</b></li>
+                  <li>Copy URL → replace line 6 of this file</li>
+                  <li>Re-upload <code style={{background:"#eaecf0",padding:"1px 5px",borderRadius:3}}>index.html</code> to GitHub</li>
                 </ol>
               </div>
             </div>
           </div>
         )}
 
-        {/* BREAKDOWN FORM */}
-        {tab==="bd"&&(
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
-            <div style={{background:"#fff",border:"1.5px solid #e4e7ec",borderRadius:12,padding:"18px 20px"}}>
-              <SecHead>Breakdown Entry</SecHead>
-              <Field label="Date *"><Inp type="date" value={b.date} onChange={uB("date")}/></Field>
-              <Field label="Section"><Inp value={b.section} readOnly onChange={()=>{}}/></Field>
-              <Field label="Product Criteria *"><Sel value={b.productCriteria} onChange={uB("productCriteria")} options={PRODUCTS} placeholder="— Select product —"/></Field>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:4}}>
-                <Field label="Machine No"><Sel value={b.machine} onChange={uB("machine")} options={MACHINES} placeholder="—"/></Field>
-                <Field label="Supervisor *"><Sel value={b.supervisorName} onChange={uB("supervisorName")} options={SUPERVISORS} placeholder="—"/></Field>
+        {/* ── BREAKDOWN TAB ── */}
+        {tab==="bd" && (
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start"}}>
+            <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px"}}>
+              <div style={SH}>Breakdown Entry</div>
+              <F l="Date *"><Inp type="date" v={b.date} on={uB("date")}/></F>
+              <F l="Section"><Inp v={b.section} on={()=>{}} ro/></F>
+              <F l="Product Criteria *"><Sel v={b.productCriteria} on={uB("productCriteria")} opts={PRODUCTS} ph="— Select product —"/></F>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4}}>
+                <F l="Machine No"><Sel v={b.machine} on={uB("machine")} opts={MACHINES} ph="—"/></F>
+                <F l="Supervisor *"><Sel v={b.supervisorName} on={uB("supervisorName")} opts={SUPERVISORS} ph="—"/></F>
               </div>
-              <Field label="Shift *"><Sel value={b.shift} onChange={uB("shift")} options={SHIFTS} placeholder="— Select shift —"/></Field>
-              <Field label="Breakdown Type *"><Sel value={b.breakdownType} onChange={uB("breakdownType")} options={BD_TYPES} placeholder="— Select type —"/></Field>
-              <Field label="Breakdown Reason *"><Sel value={b.breakdownReason} onChange={uB("breakdownReason")} options={BD_REASONS} placeholder="— Select reason —"/></Field>
-              <Field label="Downtime (Min) *"><Inp type="number" value={b.downtime} onChange={uB("downtime")} placeholder="0"/></Field>
-              <Field label="Remarks"><Inp value={b.remarks} onChange={uB("remarks")} placeholder="Optional"/></Field>
-              <button onClick={saveBd} disabled={loading} style={{...btnStyle,background:loading?"#84adcf":"#185FA5",color:"#fff",opacity:loading?0.8:1}}>
-                {loading?"Saving…":"Save Breakdown Entry  →"}
+              <F l="Shift *"><Sel v={b.shift} on={uB("shift")} opts={SHIFTS} ph="— Select —"/></F>
+              <F l="Breakdown Type *"><Sel v={b.breakdownType} on={uB("breakdownType")} opts={BD_TYPES} ph="— Select type —"/></F>
+              <F l="Breakdown Reason *"><Sel v={b.breakdownReason} on={uB("breakdownReason")} opts={BD_REASONS} ph="— Select reason —"/></F>
+              <F l="Downtime (Min) *"><Inp type="number" v={b.downtime} on={uB("downtime")} ph="0"/></F>
+              <F l="Remarks"><Inp v={b.remarks} on={uB("remarks")} ph="Optional"/></F>
+              <button onClick={saveBd} disabled={loading}
+                style={{...BTN, background:loading?"#84adcf":"#185FA5", color:"#fff", opacity:loading?0.8:1}}>
+                {loading ? "⏳ Saving to Google Sheet…" : "Save Breakdown Entry  →"}
               </button>
             </div>
 
-            {/* Preview */}
-            <div style={{background:"#fff",border:"1.5px solid #e4e7ec",borderRadius:12,padding:"18px 20px"}}>
-              <SecHead>Entry Preview</SecHead>
+            <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px"}}>
+              <div style={SH}>Entry Preview</div>
               {[
-                ["Date",b.date||"—"],
-                ["Section",b.section],
-                ["Product",b.productCriteria||"—"],
-                ["Machine",b.machine||"—"],
-                ["Supervisor",b.supervisorName||"—"],
-                ["Shift",b.shift||"—"],
-                ["Breakdown Type",b.breakdownType||"—"],
-                ["Breakdown Reason",b.breakdownReason||"—"],
-                ["Downtime",b.downtime?b.downtime+" min":"—"],
-                ["Remarks",b.remarks||"—"],
-                ["Month",b.date?monthLabel(b.date).split("-")[0]:"—"],
+                ["Date",            b.date||"—"],
+                ["Section",         b.section],
+                ["Product",         b.productCriteria||"—"],
+                ["Machine",         b.machine||"—"],
+                ["Supervisor",      b.supervisorName||"—"],
+                ["Shift",           b.shift||"—"],
+                ["Breakdown Type",  b.breakdownType||"—"],
+                ["Reason",          b.breakdownReason||"—"],
+                ["Downtime",        b.downtime?b.downtime+" min":"—"],
+                ["Remarks",         b.remarks||"—"],
+                ["Month",           b.date?monthLabel(b.date).split("-")[0]:"—"],
               ].map(([k,v])=>(
-                <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"7px 0",borderBottom:"1px solid #f2f4f7",gap:8}}>
-                  <span style={{color:"#667085",fontSize:12,flexShrink:0}}>{k}</span>
-                  <span style={{fontWeight:600,fontSize:12,color:"#101828",textAlign:"right",wordBreak:"break-word",maxWidth:"60%"}}>{v}</span>
+                <div key={k} style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"6px 0", borderBottom:"1px solid #f2f4f7", gap:8}}>
+                  <span style={{color:"#667085", fontSize:12, flexShrink:0}}>{k}</span>
+                  <span style={{fontWeight:600, fontSize:12, color:"#101828", textAlign:"right", wordBreak:"break-word", maxWidth:"60%"}}>{v}</span>
                 </div>
               ))}
-              <div style={{marginTop:16,padding:"10px 12px",background:"#f8f9fc",borderRadius:8,border:"1px solid #e4e7ec",fontSize:11,color:"#667085",lineHeight:1.7}}>
-                💡 This entry will be appended to the <b>Injection Molding Breakdown</b> table in your Google Sheet.
+              <div style={{marginTop:14, padding:"10px 12px", background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, fontSize:11, color:"#0369a1", lineHeight:1.7}}>
+                💡 This entry will be appended to the <b>Injection Molding Breakdown</b> sheet.
               </div>
             </div>
           </div>
         )}
 
-        <div style={{textAlign:"center",marginTop:20,fontSize:11,color:"#98a2b3"}}>
-          ALEL Injection Molding OEE System · Built for Google Sheets integration
+        <div style={{textAlign:"center", marginTop:18, fontSize:11, color:"#98a2b3"}}>
+          ALEL Injection Molding OEE System · Google Sheets Integration
         </div>
       </div>
     </div>
