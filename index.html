@@ -1,487 +1,269 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>ALEL — Injection Molding OEE Input</title>
-<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',system-ui,sans-serif;background:#f2f4f7;min-height:100vh;color:#101828}
-  input,select,button{font-family:inherit}
-  input:focus,select:focus{outline:none;border-color:#185FA5 !important;box-shadow:0 0 0 3px rgba(24,95,165,0.12)}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+.dash { padding: 1rem 0; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; }
+.title { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
+.subtitle { font-size: 13px; color: var(--color-text-secondary); margin-top: 2px; }
+.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filter-bar select { font-size: 13px; padding: 4px 8px; height: 32px; border-radius: var(--border-radius-md); }
+.section-title { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+.kpi { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; }
+.kpi-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+.kpi-value { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+.kpi-value.green { color: #3B6D11; }
+.kpi-value.amber { color: #854F0B; }
+.kpi-value.red { color: #A32D2D; }
+.kpi-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.5rem; }
+.chart-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px; }
+.chart-card.full { grid-column: 1/-1; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; font-size: 11px; color: var(--color-text-secondary); }
+.legend-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 3px; }
+.table-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px; margin-bottom: 1.5rem; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { color: var(--color-text-secondary); font-weight: 500; text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 11px; white-space: nowrap; }
+td { padding: 6px 8px; color: var(--color-text-primary); border-bottom: 0.5px solid var(--color-border-tertiary); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.badge-green { background: #EAF3DE; color: #3B6D11; }
+.badge-amber { background: #FAEEDA; color: #854F0B; }
+.badge-red { background: #FCEBEB; color: #A32D2D; }
+@media (max-width: 520px) { .charts-grid { grid-column: 1fr; } .chart-card.half { grid-column: 1/-1; } }
 </style>
-</head>
-<body>
-<div id="root"></div>
 
-<script type="text/babel">
-const { useState, useCallback } = React;
+<div class="dash">
+  <div class="header">
+    <div>
+      <div class="title">Injection Molding — OEE Dashboard</div>
+      <div class="subtitle" id="dash-subtitle">ALEL · May 2026 · Auto-updated from Google Sheets</div>
+    </div>
+    <div class="filter-bar">
+      <select id="filter-shift" onchange="renderAll()"><option value="All">All shifts</option><option value="Day">Day</option><option value="Night">Night</option></select>
+      <select id="filter-machine" onchange="renderAll()"><option value="All">All machines</option></select>
+    </div>
+  </div>
 
-// ── PASTE YOUR APPS SCRIPT URL HERE ──────────────────────────────────────────
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyyYfSgbhL5JHGgcv4oM_XvjQzf9XP9AAFiD3ISfJC2_Jl_5q-eUTgsCwm522fpRwE7/exec";
-// ─────────────────────────────────────────────────────────────────────────────
+  <div class="section-title">Key performance indicators</div>
+  <div class="kpi-grid" id="kpi-grid"></div>
 
-const PRODUCTS = [
-  "ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)","ENOVAR DB BACK PART FOR L1 (SFG)","ENOVAR DB FRONT PART FOR L1 (SFG)",
-  "ENOVAR DB TRANSPARENT PART FOR L1 (SFG)","ENOVAR DB BACK PART FOR L2 (SFG)","ENOVAR DB FRONT PART FOR L2 (SFG)",
-  "ENOVAR DB TRANSPARENT PART FOR L2 (SFG)","ENOVAR DB PANEL FOR 10-13 (SFG)","ENOVAR DB TRANSPARENT COVER FOR 10-13 (SFG)",
-  "ENOVAR DB PANEL FOR 4-6 (SFG)","ENOVAR DB TRANSPARENT COVER FOR 4-6 (SFG)","ENOVAR DB PANEL FOR 7-9 (SFG)",
-  "ENOVAR DB TRANSPARENT COVER FOR 7-9 (SFG)","ENOVAR DB SCREW COVER (SFG)","Body For 5W & 7W Down Panel (SFG)",
-  "DECORATING FRAME FOR PIANO (SFG)","PIANO FIXTURE FOR 2 PIN SOCKET (SFG)","PIANO BACK PART FOR 2 PIN SOCKET (SFG)",
-  "SWITCH FIXTURE FOR PIANO (SFG)","SWITCH BUTTON FOR PIANO (SFG)","PIANO SWITCH PRESS PIN (SFG)",
-  "BACK PART FOR PIANO ONE WAY SWITCH (SFG)","BACK PART FOR PIANO FAN DIMMER","Dimmer Fixture for Fan Dimmer",
-  "FIXTURE FOR PIANO FAN DIMMER","MIDDLE BOARD FOR PIANO FAN DIMMER","KNOB FOR PIANO FAN DIMMER",
-  "COVER FOR PIANO FUSE (SFG)","FUSING WIRE HOLDER FOR PIANO FUSE","PIANO INDICATOR TRANSPARENT RED COVER (SFG)",
-  "PIANO SWTICH RADIUM (SFG)","PIANO BACK PART FOR TWO WAY SWITCH (SFG)","ENOVAR EXHAUST FAN 10&12 FAN LOCK (SFG)",
-  "ENOVAR EXHAUST FAN 10&12 OIL CUP (SFG)","ENOVAR EXHAUST FAN 10IN BACK PART (SFG)","ENOVAR EXHAUST FAN 10IN BLADE (SFG)",
-  "ENOVAR EXHAUST FAN 10IN GRILLE (SFG)","ENOVAR EXHAUST FAN 10IN LINKAGE ROD (SFG)","ENOVAR EXHAUST FAN 10IN NET COVER (SFG)",
-  "ENOVAR EXHAUST FAN 10IN PANEL (SFG)","ENOVAR EXHAUST FAN 12IN BACK PART (SFG)","ENOVAR EXHAUST FAN 12IN BLADE (SFG)",
-  "ENOVAR EXHAUST FAN 12IN GRILLE (SFG)","ENOVAR EXHAUST FAN 12IN LINKAGE ROD (SFG)","ENOVAR EXHAUST FAN 12IN NET COVER (SFG)",
-  "ENOVAR EXHAUST FAN 12IN PANEL (SFG)","ENOVAR EXHAUST FAN 6&8 FAN LOCK (SFG)","ENOVAR EXHAUST FAN 6IN BLADE (SFG)",
-  "ENOVAR EXHAUST FAN 6IN GRILLE (SFG)","ENOVAR EXHAUST FAN 6IN PANEL (SFG)","ENOVAR EXHAUST FAN 8IN BACK PART (SFG)",
-  "ENOVAR EXHAUST FAN 8IN BLADE (SFG)","ENOVAR EXHAUST FAN 8IN GRILLE (SFG)","ENOVAR EXHAUST FAN 8IN LINKAGE ROD (SFG)",
-  "ENOVAR EXHAUST FAN 8IN NET COVER (SFG)","ENOVAR EXHAUST FAN 8IN PANEL (SFG)","ENOVAR EXHAUST FAN 8 OIL CUP (SFG)",
-  "ENOVAR EXHAUST FAN CABLE LOCK (SFG)","ENOVAR EXHAUST FAN CAPACITOR COVER (SFG)","ENOVAR EXHAUST FAN SPRING LOCK (SFG)",
-  "COVER FOR OCTAGONAL CEILING ROSE (SFG)","CEILING ROSE BODY FOR OCTAGONAL (SFG)","Pendant holder-B22",
-  "Cap for pendant holder","Cap for Round batten holder (common B22 and E27)","Base for Round batten holder B22",
-  "Ceiling rose-Upper cover(S)","Ceiling rose-Bottom plate(S)","2 pin plugs 10A","Internal parts for 2 pin plug（A）",
-  "British plug (13A)-Cable sleeve","round 3 pin plug (6A)-Bottom plate","Cable lock-for 3 pin plug",
-  "EXTENSION SOCKET FRONT AND BACK PART - 3S","EXTENSION SOCKET FRONT AND BACK PART - 4S","EXTENSION SOCKET FRONT AND BACK PART - 5S",
-  "DECORATIVE PART FOR EXTENSION SOCKET","INDICATOR FOR EXTENSION SOCKET","SWITCH BUTTON HOLDER",
-  "SAFETY SHUTTER FOR EXTENSION SOCKET","POWER CORD LOCK FOR EXTENSION SOCKET","Ear for Junction Box",
-  "Extension Socket Switch Button","ENOVAR DB FRONT & BACK PART FOR L1 (SFG)","ENOVAR DB FRONT & BACK PART FOR L2 (SFG)"
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="section-title">OEE components by entry</div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:#378ADD"></span>Availability</span>
+        <span><span class="legend-dot" style="background:#639922"></span>Performance</span>
+        <span><span class="legend-dot" style="background:#D85A30"></span>Quality</span>
+        <span><span class="legend-dot" style="background:#7F77DD;opacity:.7"></span>OEE</span>
+      </div>
+      <div style="position:relative;height:240px;"><canvas id="c-oee" role="img" aria-label="OEE component bar chart by production entry"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">NPT breakdown (minutes)</div>
+      <div id="npt-legend" class="legend"></div>
+      <div style="position:relative;height:240px;"><canvas id="c-npt" role="img" aria-label="NPT breakdown donut chart"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="section-title">Breakdowns by type — downtime (min)</div>
+      <div style="position:relative;height:200px;"><canvas id="c-bd" role="img" aria-label="Breakdown downtime bar chart by type"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title">Production log</div>
+  <div class="table-card">
+    <table>
+      <thead><tr>
+        <th>Date</th><th>Shift</th><th>Machine</th><th>Product</th><th>Supervisor</th>
+        <th>Target</th><th>Actual</th><th>Good</th><th>Avail%</th><th>Perf%</th><th>Qual%</th><th>OEE%</th><th>NPT(min)</th>
+      </tr></thead>
+      <tbody id="prod-table"></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Breakdown log</div>
+  <div class="table-card">
+    <table>
+      <thead><tr>
+        <th>Date</th><th>Shift</th><th>Machine</th><th>Product</th><th>Supervisor</th><th>Type</th><th>Reason</th><th>Downtime (min)</th>
+      </tr></thead>
+      <tbody id="bd-table"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const RAW_PROD = [
+  {date:'5/7/2026',shift:'Day',machine:'',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',target:1920,actual:1200,good:600,avail:78,perf:80,qual:50,oee:31.3,npt:105,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:0,elecBd:0,other:90,plannedDT:0},
+  {date:'5/9/2026',shift:'Night',machine:'A-1',product:'ENOVAR DB PANEL FOR 7-9 (SFG)',supervisor:'Rahim',target:420,actual:300,good:100,avail:59,perf:121,qual:33,oee:23.8,npt:115,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:100,elecBd:0,other:0,plannedDT:200},
+  {date:'5/15/2026',shift:'Day',machine:'A-3',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',target:1920,actual:1200,good:1111,avail:64,perf:98,qual:93,oee:57.9,npt:174,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:99,elecBd:0,other:0,plannedDT:0},
+  {date:'5/20/2026',shift:'Day',machine:'B-2',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Noo',target:1720,actual:1200,good:1194,avail:94,perf:74,qual:100,oee:69.4,npt:27,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:12,elecBd:0,other:0,plannedDT:50},
+  {date:'5/22/2026',shift:'Day',machine:'B-1',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',target:1920,actual:1200,good:1179,avail:78,perf:80,qual:98,oee:61.4,npt:105,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:0,elecBd:0,other:0,plannedDT:0},
+  {date:'5/22/2026',shift:'Night',machine:'B-5',product:'ENOVAR DB PANEL FOR 10-13 (SFG)',supervisor:'Rahim',target:523.64,actual:700,good:100,avail:82,perf:162,qual:14,oee:19.1,npt:85,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:70,mechBd:0,elecBd:0,other:0,plannedDT:0},
+  {date:'5/28/2026',shift:'Night',machine:'B-3',product:'ENOVAR DB BACK PART FOR L1 (SFG)',supervisor:'Shofiq',target:1077.55,actual:300,good:245,avail:84,perf:33,qual:82,oee:22.7,npt:71,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:56,elecBd:0,other:0,plannedDT:40},
+  {date:'5/30/2026',shift:'Day',machine:'B-3',product:'Body For 5W & 7W Down Panel (SFG)',supervisor:'Rakib',target:1047.27,actual:210,good:190,avail:55,perf:36,qual:90,oee:18.1,npt:215,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:0,elecBd:0,other:200,plannedDT:0},
+  {date:'5/20/2026',shift:'Day',machine:'A-3',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Shofiq',target:2680,actual:1211,good:1199,avail:97,perf:47,qual:99,oee:44.7,npt:23,gas:0,elec:0,matShort:0,manShort:0,qco:11,setup:12,mechBd:0,elecBd:0,other:0,plannedDT:50},
 ];
-const MACHINES    = ["A-1","A-2","A-3","A-4","A-5","B-1","B-2","B-3","B-4","B-5","B-6","B-7"];
-const SUPERVISORS = ["Shofiq","Rakib","Rahim","Noo","Rahium"];
-const SHIFTS      = ["Day","Night"];
-const BD_TYPES    = ["Mechanical Breakdown","Electrical Breakdown","Planned Downtime","In Process Setup/Adjustment","Raw Material Shortage","Others down time"];
-const BD_REASONS  = ["Planning Problem","No Problem","Resin Short Problem","Fitting Problem","Mold Problem","Mixture Problem","Product + Nozzel Problem","Power Problem","Hit Problem","Mold Change","Bad mold","Gearbroken","No reason","Dont know","maintenance"];
 
-const SMV = {
-  "ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)":0.250,"ENOVAR DB BACK PART FOR L1 (SFG)":0.408,
-  "ENOVAR DB FRONT PART FOR L1 (SFG)":0.167,"ENOVAR DB TRANSPARENT PART FOR L1 (SFG)":0.146,
-  "ENOVAR DB TRANSPARENT PART FOR L2 (SFG)":0.242,"ENOVAR DB PANEL FOR 10-13 (SFG)":0.917,
-  "ENOVAR DB TRANSPARENT COVER FOR 10-13 (SFG)":0.417,"ENOVAR DB PANEL FOR 4-6 (SFG)":0.650,
-  "ENOVAR DB TRANSPARENT COVER FOR 4-6 (SFG)":0.750,"ENOVAR DB PANEL FOR 7-9 (SFG)":0.667,
-  "ENOVAR DB TRANSPARENT COVER FOR 7-9 (SFG)":0.500,"Body For 5W & 7W Down Panel (SFG)":0.458,
-  "DECORATING FRAME FOR PIANO (SFG)":0.023,"PIANO FIXTURE FOR 2 PIN SOCKET (SFG)":0.024,
-  "PIANO BACK PART FOR 2 PIN SOCKET (SFG)":0.150,"SWITCH FIXTURE FOR PIANO (SFG)":0.040,
-  "SWITCH BUTTON FOR PIANO (SFG)":0.038,"PIANO SWITCH PRESS PIN (SFG)":0.005,
-  "BACK PART FOR PIANO ONE WAY SWITCH (SFG)":0.085,"BACK PART FOR PIANO FAN DIMMER":0.100,
-  "Dimmer Fixture for Fan Dimmer":0.079,"FIXTURE FOR PIANO FAN DIMMER":0.056,
-  "MIDDLE BOARD FOR PIANO FAN DIMMER":0.039,"KNOB FOR PIANO FAN DIMMER":0.040,
-  "PIANO INDICATOR TRANSPARENT RED COVER (SFG)":0.071,"PIANO SWTICH RADIUM (SFG)":0.004,
-  "ENOVAR EXHAUST FAN 10&12 FAN LOCK (SFG)":0.049,"ENOVAR EXHAUST FAN 10&12 OIL CUP (SFG)":0.308,
-  "ENOVAR EXHAUST FAN 10IN BACK PART (SFG)":0.967,"ENOVAR EXHAUST FAN 10IN BLADE (SFG)":0.750,
-  "ENOVAR EXHAUST FAN 10IN GRILLE (SFG)":0.433,"ENOVAR EXHAUST FAN 10IN LINKAGE ROD (SFG)":0.300,
-  "ENOVAR EXHAUST FAN 10IN NET COVER (SFG)":0.983,"ENOVAR EXHAUST FAN 10IN PANEL (SFG)":1.083,
-  "ENOVAR EXHAUST FAN 12IN BACK PART (SFG)":1.000,"ENOVAR EXHAUST FAN 12IN BLADE (SFG)":0.717,
-  "ENOVAR EXHAUST FAN 12IN GRILLE (SFG)":0.367,"ENOVAR EXHAUST FAN 12IN NET COVER (SFG)":0.833,
-  "ENOVAR EXHAUST FAN 12IN PANEL (SFG)":0.833,"ENOVAR EXHAUST FAN 6&8 FAN LOCK (SFG)":0.300,
-  "ENOVAR EXHAUST FAN 6IN BLADE (SFG)":0.667,"ENOVAR EXHAUST FAN 6IN GRILLE (SFG)":0.325,
-  "ENOVAR EXHAUST FAN 6IN PANEL (SFG)":0.750,"ENOVAR EXHAUST FAN 8IN BACK PART (SFG)":0.817,
-  "ENOVAR EXHAUST FAN 8IN BLADE (SFG)":0.633,"ENOVAR EXHAUST FAN 8IN GRILLE (SFG)":0.383,
-  "ENOVAR EXHAUST FAN 8IN LINKAGE ROD (SFG)":0.192,"ENOVAR EXHAUST FAN 8IN NET COVER (SFG)":0.717,
-  "ENOVAR EXHAUST FAN 8IN PANEL (SFG)":0.717,"ENOVAR EXHAUST FAN 8 OIL CUP (SFG)":0.267,
-  "ENOVAR EXHAUST FAN CABLE LOCK (SFG)":0.013,"ENOVAR EXHAUST FAN CAPACITOR COVER (SFG)":0.133,
-  "COVER FOR OCTAGONAL CEILING ROSE (SFG)":0.400,"CEILING ROSE BODY FOR OCTAGONAL (SFG)":0.333,
-  "Pendant holder-B22":0.333,"Cap for pendant holder":0.300,
-  "Cap for Round batten holder (common B22 and E27)":0.375,"Base for Round batten holder B22":0.333,
-  "Ceiling rose-Upper cover(S)":0.283,"Ceiling rose-Bottom plate(S)":0.258,
-  "2 pin plugs 10A":0.133,"Internal parts for 2 pin plug（A）":0.167,
-  "British plug (13A)-Cable sleeve":0.115,"round 3 pin plug (6A)-Bottom plate":0.250,
-  "Cable lock-for 3 pin plug":0.043,"EXTENSION SOCKET FRONT AND BACK PART - 3S":1.000,
-  "EXTENSION SOCKET FRONT AND BACK PART - 4S":1.017,"EXTENSION SOCKET FRONT AND BACK PART - 5S":1.083,
-  "DECORATIVE PART FOR EXTENSION SOCKET":0.088,"INDICATOR FOR EXTENSION SOCKET":0.024,
-  "SWITCH BUTTON HOLDER":0.050,"SAFETY SHUTTER FOR EXTENSION SOCKET":0.100,
-  "POWER CORD LOCK FOR EXTENSION SOCKET":0.079,"Ear for Junction Box":0.058,
-  "Extension Socket Switch Button":0.050,"ENOVAR DB FRONT & BACK PART FOR L1 (SFG)":0.417,
-  "ENOVAR DB FRONT & BACK PART FOR L2 (SFG)":0.333
-};
+const RAW_BD = [
+  {date:'5/15/2026',shift:'Day',machine:'B-6',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Others downtime',reason:'No reason',downtime:90},
+  {date:'5/15/2026',shift:'Day',machine:'B-6',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Raw Material Shortage',reason:'Maintenance',downtime:60},
+  {date:'5/7/2026',shift:'Day',machine:'A-4',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Others Downtime',reason:"Don't know",downtime:90},
+  {date:'5/9/2026',shift:'Night',machine:'B-4',product:'ENOVAR DB PANEL FOR 7-9 (SFG)',supervisor:'Rahim',type:'Mechanical Breakdown',reason:'No reason',downtime:100},
+  {date:'5/9/2026',shift:'Night',machine:'A-4',product:'ENOVAR DB PANEL FOR 7-9 (SFG)',supervisor:'Rahim',type:'Planned Downtime',reason:'Maintenance',downtime:200},
+  {date:'5/15/2026',shift:'Day',machine:'A-3',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Mechanical Breakdown',reason:'Gear broken',downtime:99},
+  {date:'5/20/2026',shift:'Day',machine:'B-2',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Noo',type:'Planned Downtime',reason:'Maintenance',downtime:50},
+  {date:'5/22/2026',shift:'Day',machine:'B-1',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Raw Material Shortage',reason:'Material unavailable',downtime:90},
+  {date:'5/22/2026',shift:'Night',machine:'B-5',product:'ENOVAR DB PANEL FOR 10-13 (SFG)',supervisor:'Rahim',type:'In Process Setup/Adjustment',reason:'No reason',downtime:70},
+  {date:'5/28/2026',shift:'Night',machine:'B-3',product:'ENOVAR DB BACK PART FOR L1 (SFG)',supervisor:'Shofiq',type:'Planned Downtime',reason:'Maintenance',downtime:40},
+  {date:'5/28/2026',shift:'Night',machine:'B-3',product:'ENOVAR DB BACK PART FOR L1 (SFG)',supervisor:'Shofiq',type:'Mechanical Breakdown',reason:'No reason',downtime:56},
+  {date:'5/30/2026',shift:'Day',machine:'B-3',product:'Body For 5W & 7W Down Panel (SFG)',supervisor:'Rakib',type:'Others Downtime',reason:'No idea',downtime:200},
+  {date:'5/20/2026',shift:'Day',machine:'A-1',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Shofiq',type:'Mechanical Breakdown',reason:'N/A',downtime:12},
+];
 
-// ── Send data to Apps Script via a hidden form POST (bypasses CORS) ──────────
-function postToSheet(payload) {
-  return new Promise((resolve) => {
-    const iframeId = "hidden_frame_" + Date.now();
-    const formId   = "hidden_form_"  + Date.now();
+let charts = {};
 
-    // Create hidden iframe as target
-    const iframe = document.createElement("iframe");
-    iframe.name = iframeId;
-    iframe.id   = iframeId;
-    iframe.style.cssText = "display:none;width:0;height:0;border:0;position:absolute;top:-9999px";
-    document.body.appendChild(iframe);
+function avg(arr, key){ return arr.length ? arr.reduce((s,r)=>s+(r[key]||0),0)/arr.length : 0; }
+function sum(arr, key){ return arr.reduce((s,r)=>s+(r[key]||0),0); }
+function fmt(v,dec=1){ return isNaN(v)?'–':Number(v).toFixed(dec); }
 
-    // Create hidden form
-    const form = document.createElement("form");
-    form.id     = formId;
-    form.method = "POST";
-    form.action = APPS_SCRIPT_URL;
-    form.target = iframeId;
-    form.style.cssText = "display:none;position:absolute;top:-9999px";
+function getFiltered(){
+  const sh = document.getElementById('filter-shift').value;
+  const mc = document.getElementById('filter-machine').value;
+  return RAW_PROD.filter(r=>(sh==='All'||r.shift===sh)&&(mc==='All'||r.machine===mc));
+}
 
-    // Embed JSON as a hidden field named "payload"
-    const input = document.createElement("input");
-    input.type  = "hidden";
-    input.name  = "payload";
-    input.value = JSON.stringify(payload);
-    form.appendChild(input);
+function getBdFiltered(){
+  const sh = document.getElementById('filter-shift').value;
+  const mc = document.getElementById('filter-machine').value;
+  return RAW_BD.filter(r=>(sh==='All'||r.shift===sh)&&(mc==='All'||r.machine===mc));
+}
 
-    document.body.appendChild(form);
+function oeeBadge(v){
+  if(v>=65) return `<span class="badge badge-green">${fmt(v)}%</span>`;
+  if(v>=40) return `<span class="badge badge-amber">${fmt(v)}%</span>`;
+  return `<span class="badge badge-red">${fmt(v)}%</span>`;
+}
 
-    // Wait for iframe load = Apps Script responded
-    let done = false;
-    const timeout = setTimeout(() => {
-      if (!done) {
-        done = true;
-        cleanup();
-        // Timeout after 12s — treat as success since we can't read no-cors response
-        // Apps Script usually saves fine even when CORS blocks the response read
-        resolve({ success: true, timedOut: true });
-      }
-    }, 12000);
+function renderKPIs(data){
+  const avgOEE = avg(data,'oee');
+  const avgAvail = avg(data,'avail');
+  const avgPerf = avg(data,'perf');
+  const avgQual = avg(data,'qual');
+  const totalGood = sum(data,'good');
+  const totalActual = sum(data,'actual');
+  const totalNPT = sum(data,'npt');
+  const achiv = totalActual>0?(totalGood/totalActual*100):0;
 
-    iframe.onload = () => {
-      if (!done) {
-        done = true;
-        clearTimeout(timeout);
-        cleanup();
-        resolve({ success: true });
-      }
-    };
+  const oeeCls = avgOEE>=65?'green':avgOEE>=40?'amber':'red';
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Average OEE</div><div class="kpi-value ${oeeCls}">${fmt(avgOEE)}%</div><div class="kpi-sub">Target ≥65%</div></div>
+    <div class="kpi"><div class="kpi-label">Availability</div><div class="kpi-value">${fmt(avgAvail)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Performance</div><div class="kpi-value">${fmt(avgPerf)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Quality</div><div class="kpi-value">${fmt(avgQual)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Good output</div><div class="kpi-value">${totalGood.toLocaleString()}</div><div class="kpi-sub">pcs</div></div>
+    <div class="kpi"><div class="kpi-label">Total actual</div><div class="kpi-value">${totalActual.toLocaleString()}</div><div class="kpi-sub">pcs</div></div>
+    <div class="kpi"><div class="kpi-label">Total NPT</div><div class="kpi-value">${totalNPT}</div><div class="kpi-sub">min</div></div>
+    <div class="kpi"><div class="kpi-label">Quality rate</div><div class="kpi-value">${fmt(achiv)}%</div><div class="kpi-sub">good/actual</div></div>
+  `;
+}
 
-    form.submit();
-
-    function cleanup() {
-      setTimeout(() => {
-        if (document.getElementById(formId))   document.body.removeChild(form);
-        if (document.getElementById(iframeId)) document.body.removeChild(iframe);
-      }, 500);
-    }
+function renderOEEChart(data){
+  const labels = data.map(r=>r.date.replace('/2026','')+'·'+r.shift.slice(0,1));
+  const avails = data.map(r=>r.avail);
+  const perfs = data.map(r=>Math.min(r.perf,160));
+  const quals = data.map(r=>r.qual);
+  const oees = data.map(r=>r.oee);
+  const ctx = document.getElementById('c-oee');
+  if(charts.oee){ charts.oee.destroy(); }
+  charts.oee = new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Availability',data:avails,backgroundColor:'#85B7EB',borderWidth:0},
+      {label:'Performance',data:perfs,backgroundColor:'#97C459',borderWidth:0},
+      {label:'Quality',data:quals,backgroundColor:'#F0997B',borderWidth:0},
+      {label:'OEE',data:oees,backgroundColor:'rgba(127,119,221,0.7)',borderWidth:0,type:'line',tension:0.3,pointRadius:4,pointBackgroundColor:'#7F77DD'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index'}},scales:{y:{min:0,max:170,ticks:{callback:v=>v+'%',font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45,autoSkip:false}}}}
   });
 }
 
-function monthLabel(d) {
-  if (!d) return "";
-  const dt = new Date(d);
-  return dt.toLocaleDateString("en-US", { month:"short", year:"numeric" }).replace(" ", "-");
+function renderNPTChart(data){
+  const nptKeys={gas:'Utility (Gas)',elec:'Utility (Elec)',matShort:'Material shortage',manShort:'Manpower shortage',qco:'QCO',setup:'In-process setup',mechBd:'Mech. breakdown',elecBd:'Elec. breakdown',other:'Other NPT'};
+  const colors=['#85B7EB','#AFA9EC','#5DCAA5','#F0997B','#FAC775','#97C459','#F4C0D1','#D3D1C7','#ED93B1'];
+  const vals = Object.keys(nptKeys).map(k=>sum(data,k));
+  const labels = Object.values(nptKeys);
+  const ctx = document.getElementById('c-npt');
+  if(charts.npt){ charts.npt.destroy(); }
+  const legHTML = labels.map((l,i)=>`<span><span class="legend-dot" style="background:${colors[i]};"></span>${l}</span>`).join('');
+  document.getElementById('npt-legend').innerHTML = legHTML;
+  charts.npt = new Chart(ctx,{
+    type:'doughnut',
+    data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} min`}}}}
+  });
 }
 
-function calcOEE(g, n) {
-  const smv = SMV[g.productCriteria] || null;
-  const st  = parseFloat(g.shiftTime) || 480;
-  const pd  = parseFloat(n.plannedDown) || 0;
-  const art = st - pd;
-  const npt = (parseFloat(n.qco)||0)+(parseFloat(n.unavailOrder)||0)+(parseFloat(n.manpower)||0)+(parseFloat(n.gas)||0)+(parseFloat(n.electricity)||0)+(parseFloat(n.others)||0);
-  const runt = art - npt;
-  const ao   = parseFloat(g.actualOutput) || 0;
-  const wst  = parseFloat(n.totalWastage) || 0;
-  const good = ao - wst;
-  const cap  = smv ? Math.round(st / smv * 10) / 10 : null;
-  const tgt  = pd > 0 && smv ? Math.round((st - pd) / smv * 10) / 10 : cap;
-  const av   = art > 0 ? runt / art : 0;
-  const perf = runt > 0 && smv ? ao * smv / runt : 0;
-  const qual = ao  > 0 ? good / ao : 0;
-  return { cap, tgt, smv, ach: tgt ? ao/tgt*100 : null, art, runt, npt, nptPct: art>0?npt/art:0, av, perf, qual, oee: av*perf*qual, good, wastePct: ao>0?wst/ao:0 };
+function renderBDChart(bdData){
+  const typeMap={};
+  bdData.forEach(r=>{ typeMap[r.type]=(typeMap[r.type]||0)+r.downtime; });
+  const labels=Object.keys(typeMap);
+  const vals=Object.values(typeMap);
+  const colors=['#85B7EB','#F0997B','#97C459','#FAC775','#AFA9EC','#ED93B1','#D3D1C7'];
+  const ctx = document.getElementById('c-bd');
+  if(charts.bd){ charts.bd.destroy(); }
+  charts.bd = new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{label:'Downtime (min)',data:vals,backgroundColor:colors.slice(0,labels.length),borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10},crossAlign:'far'}}}}
+  });
 }
 
-const P  = v => (v!=null&&!isNaN(v)) ? (v*100).toFixed(1)+"%" : "—";
-const R  = v => (v!=null&&!isNaN(v)) ? parseFloat(v).toFixed(1) : "—";
-
-// ── Shared styles ─────────────────────────────────────────────────────────────
-const IS = { width:"100%", padding:"8px 10px", fontSize:13, border:"1.5px solid #d0d5dd", borderRadius:7, background:"#fff", color:"#101828", fontFamily:"inherit" };
-const IS_RO = { ...IS, background:"#f9fafb", cursor:"default", color:"#667085" };
-const LBL = { display:"block", fontSize:11, fontWeight:700, color:"#667085", marginBottom:4, textTransform:"uppercase", letterSpacing:"0.05em" };
-const FD  = { marginBottom:12 };
-const SH  = { fontSize:10, fontWeight:800, letterSpacing:"0.12em", textTransform:"uppercase", color:"#98a2b3", margin:"18px 0 10px", borderBottom:"1.5px solid #eaecf0", paddingBottom:5 };
-
-function F({l, children}) {
-  return <div style={FD}><label style={LBL}>{l}</label>{children}</div>;
-}
-function Inp({v, on, type="text", ph="", ro=false}) {
-  return <input type={type} value={v} onChange={e=>on(e.target.value)} placeholder={ph} readOnly={ro} style={ro?IS_RO:IS}/>;
-}
-function Sel({v, on, opts, ph}) {
-  return (
-    <select value={v} onChange={e=>on(e.target.value)} style={IS}>
-      {ph && <option value="">{ph}</option>}
-      {opts.map(o=><option key={o} value={o}>{o}</option>)}
-    </select>
-  );
+function renderProdTable(data){
+  const tb = document.getElementById('prod-table');
+  tb.innerHTML = data.map(r=>`<tr>
+    <td>${r.date}</td><td>${r.shift}</td><td>${r.machine||'—'}</td>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="${r.product}">${r.product.length>35?r.product.slice(0,33)+'…':r.product}</td>
+    <td>${r.supervisor}</td>
+    <td>${Math.round(r.target).toLocaleString()}</td>
+    <td>${r.actual.toLocaleString()}</td>
+    <td>${r.good.toLocaleString()}</td>
+    <td>${fmt(r.avail)}%</td><td>${fmt(r.perf)}%</td><td>${fmt(r.qual)}%</td>
+    <td>${oeeBadge(r.oee)}</td>
+    <td>${r.npt}</td>
+  </tr>`).join('');
 }
 
-// ── Main App ──────────────────────────────────────────────────────────────────
-function App() {
-  const [tab, setTab]       = useState("prod");
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const today = new Date().toISOString().slice(0,10);
-
-  const [g, setG] = useState({ date:today, section:"Injection Molding", productCriteria:"", supervisorName:"", shift:"", actualOutput:"", shiftTime:"480", machine:"" });
-  const [n, setN] = useState({ qco:"", unavailOrder:"", manpower:"", gas:"", electricity:"", totalWastage:"", wastageReason:"", others:"", remarks:"", plannedDown:"" });
-  const [b, setB] = useState({ date:today, section:"Injection Molding", productCriteria:"", machine:"", supervisorName:"", shift:"", breakdownType:"", breakdownReason:"", downtime:"", remarks:"" });
-
-  const oee = g.productCriteria && g.actualOutput ? calcOEE(g, n) : null;
-  const uG  = k => v => setG(p=>({...p,[k]:v}));
-  const uN  = k => v => setN(p=>({...p,[k]:v}));
-  const uB  = k => v => setB(p=>({...p,[k]:v}));
-
-  async function saveProd() {
-    if (!g.date||!g.productCriteria||!g.actualOutput||!g.supervisorName||!g.shift) {
-      setStatus({t:"err", m:"Please fill all required (*) fields."}); return;
-    }
-    setLoading(true); setStatus(null);
-    const c = oee || {};
-    const payload = {
-      action: "addProduction",
-      data: {
-        sbu:"ALEL", date:g.date, section:g.section, shift:g.shift, machine:g.machine,
-        productCriteria:g.productCriteria, supervisorName:g.supervisorName,
-        shiftCapacity:c.cap||"", shiftTarget:c.tgt||"", actualOutput:g.actualOutput,
-        idealCycleTime:c.smv||"", achievementPct:c.ach?c.ach/100:"",
-        shiftTime:g.shiftTime, plannedDownTime:n.plannedDown||0,
-        availableRunTime:c.art||"", totalNPT:c.npt||0, actualRunTime:c.runt||"",
-        gas:n.gas||0, electricity:n.electricity||0, unavailOrder:n.unavailOrder||0,
-        rawMaterial:0, manpower:n.manpower||0, qco:n.qco||0,
-        inProcessSetup:0, mechBreakdown:0, elecBreakdown:0, othersDowntime:n.others||0,
-        nptPct:c.nptPct||"", wastagePct:0, totalWastage:n.totalWastage||0,
-        wastagePctCalc:c.wastePct||"", wastageReason:n.wastageReason||"",
-        goodProduction:c.good||"", availability:c.av||"", performance:c.perf||"",
-        quality:c.qual||"", oee:c.oee||"", remarks:n.remarks||"", month:monthLabel(g.date)
-      }
-    };
-    try {
-      const res = await postToSheet(payload);
-      setStatus({ t:"ok", m:"✓ Production entry saved to Google Sheet!" });
-      setG(p=>({...p, actualOutput:"", machine:""}));
-      setN({ qco:"", unavailOrder:"", manpower:"", gas:"", electricity:"", totalWastage:"", wastageReason:"", others:"", remarks:"", plannedDown:"" });
-    } catch(e) {
-      setStatus({ t:"err", m:"Error: " + e.message });
-    }
-    setLoading(false);
-  }
-
-  async function saveBd() {
-    if (!b.date||!b.productCriteria||!b.supervisorName||!b.shift||!b.breakdownType||!b.downtime) {
-      setStatus({t:"err", m:"Please fill all required (*) fields."}); return;
-    }
-    setLoading(true); setStatus(null);
-    const payload = {
-      action: "addBreakdown",
-      data: {
-        sbu:"Injection", date:b.date, section:b.section, shift:b.shift, machine:b.machine,
-        productCriteria:b.productCriteria, supervisorName:b.supervisorName,
-        breakdownType:b.breakdownType, breakdownName:b.breakdownReason,
-        reason:b.breakdownReason, downtime:b.downtime, remarks:b.remarks,
-        month:monthLabel(b.date).split("-")[0]
-      }
-    };
-    try {
-      await postToSheet(payload);
-      setStatus({ t:"ok", m:"✓ Breakdown entry saved to Google Sheet!" });
-      setB(p=>({...p, breakdownType:"", breakdownReason:"", downtime:"", remarks:"", machine:""}));
-    } catch(e) {
-      setStatus({ t:"err", m:"Error: " + e.message });
-    }
-    setLoading(false);
-  }
-
-  const BTN = { width:"100%", padding:"10px", fontSize:13, fontWeight:700, borderRadius:7, border:"none", cursor:"pointer", marginTop:6, letterSpacing:"0.02em" };
-
-  return (
-    <div style={{minHeight:"100vh", background:"#f2f4f7", padding:"20px 16px"}}>
-      <div style={{maxWidth:860, margin:"0 auto"}}>
-
-        {/* Header */}
-        <div style={{background:"#fff", borderRadius:12, border:"1.5px solid #e4e7ec", padding:"16px 22px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontSize:19, fontWeight:700, color:"#101828", letterSpacing:"-0.3px"}}>Injection Molding — OEE Input</div>
-            <div style={{fontSize:12, color:"#667085", marginTop:3}}>ALEL · Saves to Google Sheet via Apps Script</div>
-          </div>
-          <div style={{background:"#ecfdf3", color:"#027a48", fontSize:11, fontWeight:700, padding:"4px 12px", borderRadius:20, border:"1px solid #6ce9a6"}}>LIVE</div>
-        </div>
-
-        {/* Tabs */}
-        <div style={{display:"flex", gap:8, marginBottom:14}}>
-          {[["prod","📋  Production Entry"],["bd","🔧  Breakdown Entry"]].map(([k,l])=>(
-            <button key={k} onClick={()=>{setTab(k);setStatus(null);}}
-              style={{padding:"8px 20px", fontSize:13, fontWeight:700, borderRadius:8, cursor:"pointer",
-                border:tab===k?"2px solid #185FA5":"1.5px solid #d0d5dd",
-                background:tab===k?"#185FA5":"#fff",
-                color:tab===k?"#fff":"#667085",
-                boxShadow:tab===k?"0 2px 8px rgba(24,95,165,0.18)":"none"}}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {/* Status Banner */}
-        {status && (
-          <div style={{padding:"10px 14px", borderRadius:8, marginBottom:12, fontSize:13, fontWeight:600,
-            background:status.t==="ok"?"#ecfdf3":"#fef3f2",
-            color:status.t==="ok"?"#027a48":"#b42318",
-            border:`1.5px solid ${status.t==="ok"?"#6ce9a6":"#fda29b"}`}}>
-            {status.m}
-          </div>
-        )}
-
-        {/* ── PRODUCTION TAB ── */}
-        {tab==="prod" && (
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start"}}>
-            {/* Form */}
-            <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px"}}>
-              <div style={SH}>General Data</div>
-              <F l="Date *"><Inp type="date" v={g.date} on={uG("date")}/></F>
-              <F l="Section"><Inp v={g.section} on={()=>{}} ro/></F>
-              <F l="Product Criteria *"><Sel v={g.productCriteria} on={uG("productCriteria")} opts={PRODUCTS} ph="— Select product —"/></F>
-              <F l="Supervisor Name *"><Sel v={g.supervisorName} on={uG("supervisorName")} opts={SUPERVISORS} ph="— Select —"/></F>
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
-                <F l="Shift *"><Sel v={g.shift} on={uG("shift")} opts={SHIFTS} ph="—"/></F>
-                <F l="Machine"><Sel v={g.machine} on={uG("machine")} opts={MACHINES} ph="—"/></F>
-              </div>
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4}}>
-                <F l="Actual Output (Pcs) *"><Inp type="number" v={g.actualOutput} on={uG("actualOutput")} ph="0"/></F>
-                <F l="Shift Time (Min) *"><Inp type="number" v={g.shiftTime} on={uG("shiftTime")}/></F>
-              </div>
-
-              <div style={SH}>NPT & Wastage</div>
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4}}>
-                {[["plannedDown","Planned Downtime"],["qco","QCO"],["unavailOrder","Unavail. Order"],["manpower","Manpower Short."],["gas","Utility Gas"],["electricity","Utility Electricity"],["totalWastage","Total Wastage (Pcs)"],["others","Others Downtime"]].map(([k,l])=>(
-                  <F key={k} l={l + " (Min)".replace("(Pcs) (Min)","(Pcs)")}><Inp type="number" v={n[k]} on={uN(k)} ph="0"/></F>
-                ))}
-              </div>
-              <F l="Wastage Reason"><Inp v={n.wastageReason} on={uN("wastageReason")} ph="e.g. bad mold"/></F>
-              <F l="Remarks"><Inp v={n.remarks} on={uN("remarks")} ph="Optional"/></F>
-
-              <button onClick={saveProd} disabled={loading}
-                style={{...BTN, background:loading?"#84adcf":"#185FA5", color:"#fff", opacity:loading?0.8:1}}>
-                {loading ? "⏳ Saving to Google Sheet…" : "Save Production Entry  →"}
-              </button>
-            </div>
-
-            {/* OEE Preview + Guide */}
-            <div>
-              <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px", marginBottom:14}}>
-                <div style={SH}>Live OEE Preview</div>
-                {!oee ? (
-                  <div style={{textAlign:"center", padding:"28px 0", color:"#98a2b3", fontSize:13}}>
-                    <div style={{fontSize:32, marginBottom:8}}>📊</div>
-                    Select a product and enter<br/>actual output to see OEE live.
-                  </div>
-                ) : (
-                  <>
-                    <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14}}>
-                      {[["Availability",P(oee.av),false],["Performance",P(oee.perf),false],["Quality",P(oee.qual),false],["OEE",P(oee.oee),true]].map(([l,v,a])=>(
-                        <div key={l} style={{background:a?"#e8f1fb":"#f9fafb", border:"1.5px solid #e4e7ec", borderRadius:8, padding:"10px 12px", textAlign:"center"}}>
-                          <div style={{fontSize:10, fontWeight:700, color:"#98a2b3", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:3}}>{l}</div>
-                          <div style={{fontSize:22, fontWeight:700, color:a?"#185FA5":"#101828"}}>{v}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <table style={{width:"100%", fontSize:12, borderCollapse:"collapse"}}>
-                      {[
-                        ["Shift Capacity", oee.cap?R(oee.cap)+" pcs":"—"],
-                        ["Shift Target",   oee.tgt?R(oee.tgt)+" pcs":"—"],
-                        ["Achievement",    oee.ach?R(oee.ach)+"%":"—"],
-                        ["SMV (Cycle Time)",oee.smv?oee.smv.toFixed(3)+" min":"—"],
-                        ["Available Run",  R(oee.art)+" min"],
-                        ["Total NPT",      R(oee.npt)+" min ("+P(oee.nptPct)+")"],
-                        ["Actual Run",     R(oee.runt)+" min"],
-                        ["Good Production",Math.max(0,oee.good)+" pcs"],
-                        ["Wastage %",      P(oee.wastePct)],
-                      ].map(([k,v])=>(
-                        <tr key={k} style={{borderBottom:"1px solid #f2f4f7"}}>
-                          <td style={{padding:"5px 2px", color:"#667085"}}>{k}</td>
-                          <td style={{padding:"5px 2px", textAlign:"right", fontWeight:700, color:"#101828"}}>{v}</td>
-                        </tr>
-                      ))}
-                    </table>
-                    {!SMV[g.productCriteria] && (
-                      <div style={{marginTop:8, padding:"6px 10px", background:"#fffaeb", border:"1px solid #fedf89", borderRadius:6, fontSize:11, color:"#b54708"}}>
-                        ⚠ SMV not in database — capacity fields will be blank.
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div style={{background:"#f8f9fc", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"14px 18px", fontSize:12, color:"#667085"}}>
-                <div style={{fontWeight:700, marginBottom:8, color:"#344054", fontSize:13}}>⚙ Apps Script Setup</div>
-                <ol style={{paddingLeft:18, lineHeight:2.1}}>
-                  <li>Open your Google Sheet</li>
-                  <li><b>Extensions → Apps Script</b> → paste <code style={{background:"#eaecf0",padding:"1px 5px",borderRadius:3}}>Code.gs</code></li>
-                  <li><b>Deploy → New deployment → Web App</b></li>
-                  <li>Execute as: <b>Me</b> · Access: <b>Anyone</b></li>
-                  <li>Copy URL → replace line 6 of this file</li>
-                  <li>Re-upload <code style={{background:"#eaecf0",padding:"1px 5px",borderRadius:3}}>index.html</code> to GitHub</li>
-                </ol>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── BREAKDOWN TAB ── */}
-        {tab==="bd" && (
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start"}}>
-            <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px"}}>
-              <div style={SH}>Breakdown Entry</div>
-              <F l="Date *"><Inp type="date" v={b.date} on={uB("date")}/></F>
-              <F l="Section"><Inp v={b.section} on={()=>{}} ro/></F>
-              <F l="Product Criteria *"><Sel v={b.productCriteria} on={uB("productCriteria")} opts={PRODUCTS} ph="— Select product —"/></F>
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4}}>
-                <F l="Machine No"><Sel v={b.machine} on={uB("machine")} opts={MACHINES} ph="—"/></F>
-                <F l="Supervisor *"><Sel v={b.supervisorName} on={uB("supervisorName")} opts={SUPERVISORS} ph="—"/></F>
-              </div>
-              <F l="Shift *"><Sel v={b.shift} on={uB("shift")} opts={SHIFTS} ph="— Select —"/></F>
-              <F l="Breakdown Type *"><Sel v={b.breakdownType} on={uB("breakdownType")} opts={BD_TYPES} ph="— Select type —"/></F>
-              <F l="Breakdown Reason *"><Sel v={b.breakdownReason} on={uB("breakdownReason")} opts={BD_REASONS} ph="— Select reason —"/></F>
-              <F l="Downtime (Min) *"><Inp type="number" v={b.downtime} on={uB("downtime")} ph="0"/></F>
-              <F l="Remarks"><Inp v={b.remarks} on={uB("remarks")} ph="Optional"/></F>
-              <button onClick={saveBd} disabled={loading}
-                style={{...BTN, background:loading?"#84adcf":"#185FA5", color:"#fff", opacity:loading?0.8:1}}>
-                {loading ? "⏳ Saving to Google Sheet…" : "Save Breakdown Entry  →"}
-              </button>
-            </div>
-
-            <div style={{background:"#fff", border:"1.5px solid #e4e7ec", borderRadius:12, padding:"18px 20px"}}>
-              <div style={SH}>Entry Preview</div>
-              {[
-                ["Date",            b.date||"—"],
-                ["Section",         b.section],
-                ["Product",         b.productCriteria||"—"],
-                ["Machine",         b.machine||"—"],
-                ["Supervisor",      b.supervisorName||"—"],
-                ["Shift",           b.shift||"—"],
-                ["Breakdown Type",  b.breakdownType||"—"],
-                ["Reason",          b.breakdownReason||"—"],
-                ["Downtime",        b.downtime?b.downtime+" min":"—"],
-                ["Remarks",         b.remarks||"—"],
-                ["Month",           b.date?monthLabel(b.date).split("-")[0]:"—"],
-              ].map(([k,v])=>(
-                <div key={k} style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"6px 0", borderBottom:"1px solid #f2f4f7", gap:8}}>
-                  <span style={{color:"#667085", fontSize:12, flexShrink:0}}>{k}</span>
-                  <span style={{fontWeight:600, fontSize:12, color:"#101828", textAlign:"right", wordBreak:"break-word", maxWidth:"60%"}}>{v}</span>
-                </div>
-              ))}
-              <div style={{marginTop:14, padding:"10px 12px", background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, fontSize:11, color:"#0369a1", lineHeight:1.7}}>
-                💡 This entry will be appended to the <b>Injection Molding Breakdown</b> sheet.
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div style={{textAlign:"center", marginTop:18, fontSize:11, color:"#98a2b3"}}>
-          ALEL Injection Molding OEE System · Google Sheets Integration
-        </div>
-      </div>
-    </div>
-  );
+function renderBDTable(bdData){
+  const tb = document.getElementById('bd-table');
+  tb.innerHTML = bdData.map(r=>`<tr>
+    <td>${r.date}</td><td>${r.shift}</td><td>${r.machine}</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;" title="${r.product}">${r.product.length>28?r.product.slice(0,26)+'…':r.product}</td>
+    <td>${r.supervisor}</td>
+    <td>${r.type}</td><td>${r.reason}</td>
+    <td><strong>${r.downtime}</strong></td>
+  </tr>`).join('');
 }
 
-ReactDOM.render(<App/>, document.getElementById("root"));
+function populateMachineFilter(){
+  const sel = document.getElementById('filter-machine');
+  const machines=[...new Set(RAW_PROD.map(r=>r.machine).filter(Boolean))].sort();
+  machines.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
+}
+
+function renderAll(){
+  const data = getFiltered();
+  const bdData = getBdFiltered();
+  renderKPIs(data);
+  renderOEEChart(data);
+  renderNPTChart(data);
+  renderBDChart(bdData);
+  renderProdTable(data);
+  renderBDTable(bdData);
+}
+
+populateMachineFilter();
+renderAll();
 </script>
-</body>
-</html>
