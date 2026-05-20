@@ -1,269 +1,701 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Injection Molding — OEE Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--font-sans); }
-.dash { padding: 1rem 0; }
-.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; }
-.title { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
-.subtitle { font-size: 13px; color: var(--color-text-secondary); margin-top: 2px; }
-.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.filter-bar select { font-size: 13px; padding: 4px 8px; height: 32px; border-radius: var(--border-radius-md); }
-.section-title { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
-.kpi { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; }
-.kpi-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
-.kpi-value { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
-.kpi-value.green { color: #3B6D11; }
-.kpi-value.amber { color: #854F0B; }
-.kpi-value.red { color: #A32D2D; }
-.kpi-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
-.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.5rem; }
-.chart-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px; }
-.chart-card.full { grid-column: 1/-1; }
-.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; font-size: 11px; color: var(--color-text-secondary); }
-.legend-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 3px; }
-.table-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px; margin-bottom: 1.5rem; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th { color: var(--color-text-secondary); font-weight: 500; text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 11px; white-space: nowrap; }
-td { padding: 6px 8px; color: var(--color-text-primary); border-bottom: 0.5px solid var(--color-border-tertiary); white-space: nowrap; }
-tr:last-child td { border-bottom: none; }
-.badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 500; }
-.badge-green { background: #EAF3DE; color: #3B6D11; }
-.badge-amber { background: #FAEEDA; color: #854F0B; }
-.badge-red { background: #FCEBEB; color: #A32D2D; }
-@media (max-width: 520px) { .charts-grid { grid-column: 1fr; } .chart-card.half { grid-column: 1/-1; } }
+  :root {
+    --bg: #F5F4F0;
+    --surface: #FFFFFF;
+    --surface2: #EEECEA;
+    --border: #D8D6D0;
+    --text: #1A1916;
+    --text2: #6B6963;
+    --text3: #9B9890;
+    --green: #2D6A4F; --green-bg: #D8F3DC;
+    --amber: #B45309; --amber-bg: #FEF3C7;
+    --red: #9B1C1C; --red-bg: #FDE8E8;
+    --blue: #1E40AF; --blue-bg: #DBEAFE;
+    --accent: #1A1916;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+  .logo span { color: var(--text2); font-weight: 400; }
+  .divider { width: 1px; height: 20px; background: var(--border); }
+  .page-title { font-size: 13px; color: var(--text2); font-weight: 400; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .status-text { font-size: 12px; color: var(--text2); }
+  .refresh-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    padding: 6px 14px; font-size: 12px; font-weight: 500;
+    cursor: pointer; font-family: inherit;
+    transition: opacity .15s;
+  }
+  .refresh-btn:hover { opacity: .85; }
+  .refresh-btn svg { width:14px; height:14px; }
+
+  /* MAIN */
+  .main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+
+  /* FILTER BAR */
+  .filterbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 12px; color: var(--text2); font-weight: 500; }
+  .filter-group { display: flex; gap: 6px; }
+  select, .filter-btn {
+    height: 32px; padding: 0 10px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 12px; color: var(--text);
+    background: var(--surface); cursor: pointer; outline: none;
+    transition: border-color .15s;
+  }
+  select:focus, .filter-btn:focus { border-color: var(--accent); }
+
+  /* KPI STRIP */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .kpi-label { font-size: 11px; color: var(--text2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .kpi-value { font-size: 26px; font-weight: 300; color: var(--text); line-height: 1; font-family: 'DM Mono', monospace; }
+  .kpi-value.oee-good { color: var(--green); }
+  .kpi-value.oee-warn { color: var(--amber); }
+  .kpi-value.oee-bad  { color: var(--red); }
+  .kpi-sub { font-size: 11px; color: var(--text3); margin-top: 5px; }
+
+  /* CHART GRID */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .card.full { grid-column: 1/-1; }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .card-title { font-size: 12px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+  .legend-box { width: 9px; height: 9px; border-radius: 2px; }
+
+  /* TABLES */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 780px; }
+  thead th {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--text3);
+    padding: 8px 10px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    position: sticky; top: 0; background: var(--surface);
+  }
+  tbody td { padding: 8px 10px; border-bottom: 1px solid var(--surface2); white-space: nowrap; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface2); }
+
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 20px;
+    font-size: 11px; font-weight: 500; font-family: 'DM Mono', monospace;
+  }
+  .badge-g { background: var(--green-bg); color: var(--green); }
+  .badge-a { background: var(--amber-bg); color: var(--amber); }
+  .badge-r { background: var(--red-bg); color: var(--red); }
+  .badge-b { background: var(--blue-bg); color: var(--blue); }
+
+  /* LOADER */
+  .loader-overlay {
+    position: fixed; inset: 0; background: rgba(245,244,240,.92);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 999; gap: 14px;
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-text { font-size: 13px; color: var(--text2); }
+
+  /* ERROR */
+  .error-banner {
+    display: none;
+    background: var(--red-bg); border: 1px solid #fca5a5;
+    border-radius: var(--radius); padding: 14px 18px;
+    margin-bottom: 16px; font-size: 13px; color: var(--red);
+  }
+  .setup-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+  }
+  .setup-box h2 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .setup-box p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 12px; }
+  .setup-box ol { padding-left: 18px; font-size: 13px; color: var(--text2); line-height: 2; }
+  .setup-box code {
+    background: var(--surface2); padding: 2px 6px;
+    border-radius: 4px; font-family: 'DM Mono', monospace;
+    font-size: 12px; color: var(--text);
+  }
+  .url-input-row { display: flex; gap: 8px; margin-top: 12px; }
+  .url-input {
+    flex: 1; height: 36px; padding: 0 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text);
+    background: var(--surface); outline: none;
+  }
+  .url-input:focus { border-color: var(--accent); }
+  .save-btn {
+    height: 36px; padding: 0 16px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 12px; font-weight: 500;
+    cursor: pointer;
+  }
+  .last-updated { font-size: 11px; color: var(--text3); }
+
+  @media (max-width: 640px) {
+    .chart-grid { grid-template-columns: 1fr; }
+    .topbar { padding: 0 14px; }
+    .main { padding: 14px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
 </style>
+</head>
+<body>
 
-<div class="dash">
-  <div class="header">
-    <div>
-      <div class="title">Injection Molding — OEE Dashboard</div>
-      <div class="subtitle" id="dash-subtitle">ALEL · May 2026 · Auto-updated from Google Sheets</div>
-    </div>
-    <div class="filter-bar">
-      <select id="filter-shift" onchange="renderAll()"><option value="All">All shifts</option><option value="Day">Day</option><option value="Night">Night</option></select>
-      <select id="filter-machine" onchange="renderAll()"><option value="All">All machines</option></select>
-    </div>
+<div class="loader-overlay" id="loader">
+  <div class="spinner"></div>
+  <div class="loader-text" id="loader-text">Loading data from Google Sheets…</div>
+</div>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">ALEL <span>Production</span></div>
+    <div class="divider"></div>
+    <div class="page-title">Injection Molding — OEE Dashboard</div>
   </div>
-
-  <div class="section-title">Key performance indicators</div>
-  <div class="kpi-grid" id="kpi-grid"></div>
-
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="section-title">OEE components by entry</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#378ADD"></span>Availability</span>
-        <span><span class="legend-dot" style="background:#639922"></span>Performance</span>
-        <span><span class="legend-dot" style="background:#D85A30"></span>Quality</span>
-        <span><span class="legend-dot" style="background:#7F77DD;opacity:.7"></span>OEE</span>
-      </div>
-      <div style="position:relative;height:240px;"><canvas id="c-oee" role="img" aria-label="OEE component bar chart by production entry"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="section-title">NPT breakdown (minutes)</div>
-      <div id="npt-legend" class="legend"></div>
-      <div style="position:relative;height:240px;"><canvas id="c-npt" role="img" aria-label="NPT breakdown donut chart"></canvas></div>
-    </div>
-    <div class="chart-card full">
-      <div class="section-title">Breakdowns by type — downtime (min)</div>
-      <div style="position:relative;height:200px;"><canvas id="c-bd" role="img" aria-label="Breakdown downtime bar chart by type"></canvas></div>
-    </div>
-  </div>
-
-  <div class="section-title">Production log</div>
-  <div class="table-card">
-    <table>
-      <thead><tr>
-        <th>Date</th><th>Shift</th><th>Machine</th><th>Product</th><th>Supervisor</th>
-        <th>Target</th><th>Actual</th><th>Good</th><th>Avail%</th><th>Perf%</th><th>Qual%</th><th>OEE%</th><th>NPT(min)</th>
-      </tr></thead>
-      <tbody id="prod-table"></tbody>
-    </table>
-  </div>
-
-  <div class="section-title">Breakdown log</div>
-  <div class="table-card">
-    <table>
-      <thead><tr>
-        <th>Date</th><th>Shift</th><th>Machine</th><th>Product</th><th>Supervisor</th><th>Type</th><th>Reason</th><th>Downtime (min)</th>
-      </tr></thead>
-      <tbody id="bd-table"></tbody>
-    </table>
+  <div class="topbar-right">
+    <div class="status-dot" id="status-dot" style="background:#d1d5db"></div>
+    <div class="status-text" id="status-text">Not connected</div>
+    <div class="last-updated" id="last-updated"></div>
+    <button class="refresh-btn" onclick="loadData()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Refresh
+    </button>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<div class="main">
+
+  <!-- SETUP PANEL (shown if no URL saved) -->
+  <div class="setup-box" id="setup-box">
+    <h2>🔌 Connect to Google Sheets</h2>
+    <p>To display live data, you need a Google Apps Script web app. Follow these steps once:</p>
+    <ol>
+      <li>Open your spreadsheet → <code>Extensions → Apps Script</code></li>
+      <li>Delete any existing code, paste the script below, and click <strong>Save</strong></li>
+      <li>Click <strong>Deploy → New deployment</strong> → Type: <em>Web app</em></li>
+      <li>Set <em>Execute as</em>: <strong>Me</strong> · <em>Who has access</em>: <strong>Anyone</strong></li>
+      <li>Click <strong>Deploy</strong>, copy the Web app URL, paste it below</li>
+    </ol>
+    <div class="url-input-row">
+      <input class="url-input" id="script-url" placeholder="https://script.google.com/macros/s/…/exec" />
+      <button class="save-btn" onclick="saveUrl()">Connect</button>
+    </div>
+  </div>
+
+  <!-- APPS SCRIPT CODE DISPLAY -->
+  <div class="card" id="script-card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <div class="card-title">Apps Script code — paste this into your Google Sheet</div>
+      <button class="refresh-btn" onclick="copyScript()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);">Copy code</button>
+    </div>
+    <pre id="script-code" style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text);overflow-x:auto;white-space:pre;line-height:1.6;max-height:260px;overflow-y:auto;"></pre>
+  </div>
+
+  <div class="error-banner" id="error-banner"></div>
+
+  <!-- FILTERS -->
+  <div class="filterbar" id="filterbar" style="display:none">
+    <span class="filter-label">Filter:</span>
+    <select id="f-shift" onchange="renderAll()"><option value="">All shifts</option><option>Day</option><option>Night</option></select>
+    <select id="f-machine" onchange="renderAll()"><option value="">All machines</option></select>
+    <select id="f-supervisor" onchange="renderAll()"><option value="">All supervisors</option></select>
+    <select id="f-product" onchange="renderAll()"><option value="">All products</option></select>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid" id="kpi-grid" style="display:none"></div>
+
+  <!-- CHARTS -->
+  <div class="chart-grid" id="chart-grid" style="display:none">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">OEE components by entry</div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-box" style="background:#3B82F6"></div>Avail</div>
+          <div class="legend-item"><div class="legend-box" style="background:#22C55E"></div>Perf</div>
+          <div class="legend-item"><div class="legend-box" style="background:#F97316"></div>Qual</div>
+          <div class="legend-item"><div class="legend-box" style="background:#8B5CF6;opacity:.7"></div>OEE</div>
+        </div>
+      </div>
+      <div style="position:relative;height:220px"><canvas id="c-oee" role="img" aria-label="OEE components bar chart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">NPT breakdown (min)</div>
+        <div class="legend" id="npt-legend"></div>
+      </div>
+      <div style="position:relative;height:220px"><canvas id="c-npt" role="img" aria-label="NPT breakdown donut chart"></canvas></div>
+    </div>
+
+    <div class="card full">
+      <div class="card-header">
+        <div class="card-title">Downtime by breakdown type (min)</div>
+      </div>
+      <div style="position:relative;height:200px"><canvas id="c-bd" role="img" aria-label="Breakdown downtime bar chart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- PRODUCTION TABLE -->
+  <div class="card" id="prod-card" style="display:none;margin-bottom:12px;">
+    <div class="card-header"><div class="card-title">Production log</div><div class="last-updated" id="prod-count"></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Shift</th><th>Machine</th><th>Product</th><th>Supervisor</th>
+          <th>Target</th><th>Actual</th><th>Good</th>
+          <th>Avail%</th><th>Perf%</th><th>Qual%</th><th>OEE%</th><th>NPT min</th><th>Wastage</th>
+        </tr></thead>
+        <tbody id="prod-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BREAKDOWN TABLE -->
+  <div class="card" id="bd-card" style="display:none">
+    <div class="card-header"><div class="card-title">Breakdown log</div><div class="last-updated" id="bd-count"></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Shift</th><th>Machine</th><th>Product</th><th>Supervisor</th>
+          <th>Type</th><th>Reason</th><th>Downtime (min)</th>
+        </tr></thead>
+        <tbody id="bd-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
 <script>
-const RAW_PROD = [
-  {date:'5/7/2026',shift:'Day',machine:'',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',target:1920,actual:1200,good:600,avail:78,perf:80,qual:50,oee:31.3,npt:105,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:0,elecBd:0,other:90,plannedDT:0},
-  {date:'5/9/2026',shift:'Night',machine:'A-1',product:'ENOVAR DB PANEL FOR 7-9 (SFG)',supervisor:'Rahim',target:420,actual:300,good:100,avail:59,perf:121,qual:33,oee:23.8,npt:115,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:100,elecBd:0,other:0,plannedDT:200},
-  {date:'5/15/2026',shift:'Day',machine:'A-3',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',target:1920,actual:1200,good:1111,avail:64,perf:98,qual:93,oee:57.9,npt:174,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:99,elecBd:0,other:0,plannedDT:0},
-  {date:'5/20/2026',shift:'Day',machine:'B-2',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Noo',target:1720,actual:1200,good:1194,avail:94,perf:74,qual:100,oee:69.4,npt:27,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:12,elecBd:0,other:0,plannedDT:50},
-  {date:'5/22/2026',shift:'Day',machine:'B-1',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',target:1920,actual:1200,good:1179,avail:78,perf:80,qual:98,oee:61.4,npt:105,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:0,elecBd:0,other:0,plannedDT:0},
-  {date:'5/22/2026',shift:'Night',machine:'B-5',product:'ENOVAR DB PANEL FOR 10-13 (SFG)',supervisor:'Rahim',target:523.64,actual:700,good:100,avail:82,perf:162,qual:14,oee:19.1,npt:85,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:70,mechBd:0,elecBd:0,other:0,plannedDT:0},
-  {date:'5/28/2026',shift:'Night',machine:'B-3',product:'ENOVAR DB BACK PART FOR L1 (SFG)',supervisor:'Shofiq',target:1077.55,actual:300,good:245,avail:84,perf:33,qual:82,oee:22.7,npt:71,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:56,elecBd:0,other:0,plannedDT:40},
-  {date:'5/30/2026',shift:'Day',machine:'B-3',product:'Body For 5W & 7W Down Panel (SFG)',supervisor:'Rakib',target:1047.27,actual:210,good:190,avail:55,perf:36,qual:90,oee:18.1,npt:215,gas:4,elec:5,matShort:2,manShort:3,qco:1,setup:0,mechBd:0,elecBd:0,other:200,plannedDT:0},
-  {date:'5/20/2026',shift:'Day',machine:'A-3',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Shofiq',target:2680,actual:1211,good:1199,avail:97,perf:47,qual:99,oee:44.7,npt:23,gas:0,elec:0,matShort:0,manShort:0,qco:11,setup:12,mechBd:0,elecBd:0,other:0,plannedDT:50},
-];
+// ─── Apps Script source code to display/copy ───────────────────────────────
+const APPS_SCRIPT = `function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var prodSheet = ss.getSheetByName("Production Report");
+  var bdSheet   = ss.getSheetByName("Injection Molding Breakdown");
 
-const RAW_BD = [
-  {date:'5/15/2026',shift:'Day',machine:'B-6',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Others downtime',reason:'No reason',downtime:90},
-  {date:'5/15/2026',shift:'Day',machine:'B-6',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Raw Material Shortage',reason:'Maintenance',downtime:60},
-  {date:'5/7/2026',shift:'Day',machine:'A-4',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Others Downtime',reason:"Don't know",downtime:90},
-  {date:'5/9/2026',shift:'Night',machine:'B-4',product:'ENOVAR DB PANEL FOR 7-9 (SFG)',supervisor:'Rahim',type:'Mechanical Breakdown',reason:'No reason',downtime:100},
-  {date:'5/9/2026',shift:'Night',machine:'A-4',product:'ENOVAR DB PANEL FOR 7-9 (SFG)',supervisor:'Rahim',type:'Planned Downtime',reason:'Maintenance',downtime:200},
-  {date:'5/15/2026',shift:'Day',machine:'A-3',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Mechanical Breakdown',reason:'Gear broken',downtime:99},
-  {date:'5/20/2026',shift:'Day',machine:'B-2',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Noo',type:'Planned Downtime',reason:'Maintenance',downtime:50},
-  {date:'5/22/2026',shift:'Day',machine:'B-1',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Rahim',type:'Raw Material Shortage',reason:'Material unavailable',downtime:90},
-  {date:'5/22/2026',shift:'Night',machine:'B-5',product:'ENOVAR DB PANEL FOR 10-13 (SFG)',supervisor:'Rahim',type:'In Process Setup/Adjustment',reason:'No reason',downtime:70},
-  {date:'5/28/2026',shift:'Night',machine:'B-3',product:'ENOVAR DB BACK PART FOR L1 (SFG)',supervisor:'Shofiq',type:'Planned Downtime',reason:'Maintenance',downtime:40},
-  {date:'5/28/2026',shift:'Night',machine:'B-3',product:'ENOVAR DB BACK PART FOR L1 (SFG)',supervisor:'Shofiq',type:'Mechanical Breakdown',reason:'No reason',downtime:56},
-  {date:'5/30/2026',shift:'Day',machine:'B-3',product:'Body For 5W & 7W Down Panel (SFG)',supervisor:'Rakib',type:'Others Downtime',reason:'No idea',downtime:200},
-  {date:'5/20/2026',shift:'Day',machine:'A-1',product:'ENDCAP (BRACKET) FOR 10W 40W BRACKET TUBE (SFG)',supervisor:'Shofiq',type:'Mechanical Breakdown',reason:'N/A',downtime:12},
-];
+  var prodData = sheetToJSON(prodSheet);
+  var bdData   = sheetToJSON(bdSheet);
 
-let charts = {};
-
-function avg(arr, key){ return arr.length ? arr.reduce((s,r)=>s+(r[key]||0),0)/arr.length : 0; }
-function sum(arr, key){ return arr.reduce((s,r)=>s+(r[key]||0),0); }
-function fmt(v,dec=1){ return isNaN(v)?'–':Number(v).toFixed(dec); }
-
-function getFiltered(){
-  const sh = document.getElementById('filter-shift').value;
-  const mc = document.getElementById('filter-machine').value;
-  return RAW_PROD.filter(r=>(sh==='All'||r.shift===sh)&&(mc==='All'||r.machine===mc));
+  var output = JSON.stringify({ production: prodData, breakdown: bdData });
+  return ContentService
+    .createTextOutput(output)
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-function getBdFiltered(){
-  const sh = document.getElementById('filter-shift').value;
-  const mc = document.getElementById('filter-machine').value;
-  return RAW_BD.filter(r=>(sh==='All'||r.shift===sh)&&(mc==='All'||r.machine===mc));
-}
+function sheetToJSON(sheet) {
+  var data  = sheet.getDataRange().getValues();
+  var headers = data[0].map(function(h){ return String(h).trim(); });
+  var rows = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var obj = {};
+    var hasValue = false;
+    for (var j = 0; j < headers.length; j++) {
+      var val = row[j];
+      if (val instanceof Date) { val = Utilities.formatDate(val, "Asia/Dhaka", "MM/dd/yyyy"); }
+      obj[headers[j]] = val;
+      if (val !== "" && val !== null && val !== undefined) hasValue = true;
+    }
+    if (hasValue) rows.push(obj);
+  }
+  return rows;
+}`;
 
-function oeeBadge(v){
-  if(v>=65) return `<span class="badge badge-green">${fmt(v)}%</span>`;
-  if(v>=40) return `<span class="badge badge-amber">${fmt(v)}%</span>`;
-  return `<span class="badge badge-red">${fmt(v)}%</span>`;
-}
+document.getElementById('script-code').textContent = APPS_SCRIPT;
 
-function renderKPIs(data){
-  const avgOEE = avg(data,'oee');
-  const avgAvail = avg(data,'avail');
-  const avgPerf = avg(data,'perf');
-  const avgQual = avg(data,'qual');
-  const totalGood = sum(data,'good');
-  const totalActual = sum(data,'actual');
-  const totalNPT = sum(data,'npt');
-  const achiv = totalActual>0?(totalGood/totalActual*100):0;
-
-  const oeeCls = avgOEE>=65?'green':avgOEE>=40?'amber':'red';
-  document.getElementById('kpi-grid').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Average OEE</div><div class="kpi-value ${oeeCls}">${fmt(avgOEE)}%</div><div class="kpi-sub">Target ≥65%</div></div>
-    <div class="kpi"><div class="kpi-label">Availability</div><div class="kpi-value">${fmt(avgAvail)}%</div></div>
-    <div class="kpi"><div class="kpi-label">Performance</div><div class="kpi-value">${fmt(avgPerf)}%</div></div>
-    <div class="kpi"><div class="kpi-label">Quality</div><div class="kpi-value">${fmt(avgQual)}%</div></div>
-    <div class="kpi"><div class="kpi-label">Good output</div><div class="kpi-value">${totalGood.toLocaleString()}</div><div class="kpi-sub">pcs</div></div>
-    <div class="kpi"><div class="kpi-label">Total actual</div><div class="kpi-value">${totalActual.toLocaleString()}</div><div class="kpi-sub">pcs</div></div>
-    <div class="kpi"><div class="kpi-label">Total NPT</div><div class="kpi-value">${totalNPT}</div><div class="kpi-sub">min</div></div>
-    <div class="kpi"><div class="kpi-label">Quality rate</div><div class="kpi-value">${fmt(achiv)}%</div><div class="kpi-sub">good/actual</div></div>
-  `;
-}
-
-function renderOEEChart(data){
-  const labels = data.map(r=>r.date.replace('/2026','')+'·'+r.shift.slice(0,1));
-  const avails = data.map(r=>r.avail);
-  const perfs = data.map(r=>Math.min(r.perf,160));
-  const quals = data.map(r=>r.qual);
-  const oees = data.map(r=>r.oee);
-  const ctx = document.getElementById('c-oee');
-  if(charts.oee){ charts.oee.destroy(); }
-  charts.oee = new Chart(ctx,{
-    type:'bar',
-    data:{labels,datasets:[
-      {label:'Availability',data:avails,backgroundColor:'#85B7EB',borderWidth:0},
-      {label:'Performance',data:perfs,backgroundColor:'#97C459',borderWidth:0},
-      {label:'Quality',data:quals,backgroundColor:'#F0997B',borderWidth:0},
-      {label:'OEE',data:oees,backgroundColor:'rgba(127,119,221,0.7)',borderWidth:0,type:'line',tension:0.3,pointRadius:4,pointBackgroundColor:'#7F77DD'},
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index'}},scales:{y:{min:0,max:170,ticks:{callback:v=>v+'%',font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45,autoSkip:false}}}}
+function copyScript(){
+  navigator.clipboard.writeText(APPS_SCRIPT).then(()=>{
+    const btn = event.target.closest('button');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(()=>btn.textContent=orig, 1500);
   });
 }
 
-function renderNPTChart(data){
-  const nptKeys={gas:'Utility (Gas)',elec:'Utility (Elec)',matShort:'Material shortage',manShort:'Manpower shortage',qco:'QCO',setup:'In-process setup',mechBd:'Mech. breakdown',elecBd:'Elec. breakdown',other:'Other NPT'};
-  const colors=['#85B7EB','#AFA9EC','#5DCAA5','#F0997B','#FAC775','#97C459','#F4C0D1','#D3D1C7','#ED93B1'];
-  const vals = Object.keys(nptKeys).map(k=>sum(data,k));
-  const labels = Object.values(nptKeys);
-  const ctx = document.getElementById('c-npt');
-  if(charts.npt){ charts.npt.destroy(); }
-  const legHTML = labels.map((l,i)=>`<span><span class="legend-dot" style="background:${colors[i]};"></span>${l}</span>`).join('');
-  document.getElementById('npt-legend').innerHTML = legHTML;
-  charts.npt = new Chart(ctx,{
-    type:'doughnut',
-    data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:0}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} min`}}}}
+// ─── URL persistence ────────────────────────────────────────────────────────
+const LS_KEY = 'oee_script_url';
+
+function saveUrl(){
+  const url = document.getElementById('script-url').value.trim();
+  if(!url){ alert('Please paste your Apps Script web app URL.'); return; }
+  localStorage.setItem(LS_KEY, url);
+  loadData();
+}
+
+// ─── State ──────────────────────────────────────────────────────────────────
+let PROD = [], BD = [], charts = {};
+
+// ─── Load data ──────────────────────────────────────────────────────────────
+async function loadData(){
+  const url = localStorage.getItem(LS_KEY) || document.getElementById('script-url').value.trim();
+  if(!url){
+    document.getElementById('loader').style.display = 'none';
+    return;
+  }
+  document.getElementById('loader').style.display = 'flex';
+  document.getElementById('loader-text').textContent = 'Fetching live data from Google Sheets…';
+  document.getElementById('error-banner').style.display = 'none';
+
+  try {
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    PROD = (json.production || []).filter(r => r['Actual Output (PCs)'] || r['Actual Output (Pcs)']);
+    BD   = (json.breakdown  || []).filter(r => r['Downtime']);
+    onDataLoaded();
+  } catch(err){
+    showError('Could not fetch data: ' + err.message + '. Check your Apps Script URL and that the deployment is set to "Anyone can access".');
+  } finally {
+    document.getElementById('loader').style.display = 'none';
+  }
+}
+
+function onDataLoaded(){
+  document.getElementById('status-dot').style.background = '#22c55e';
+  document.getElementById('status-text').textContent = 'Live';
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  document.getElementById('setup-box').style.display = 'none';
+
+  // Populate filter dropdowns
+  const machines  = [...new Set(PROD.map(r=>r['Machine']).filter(Boolean))].sort();
+  const supers    = [...new Set(PROD.map(r=>r['Supervisor Name']).filter(Boolean))].sort();
+  const products  = [...new Set(PROD.map(r=>r['Product Criteria']).filter(Boolean))].sort();
+  populateSelect('f-machine', machines);
+  populateSelect('f-supervisor', supers);
+  populateSelect('f-product', products);
+
+  ['filterbar','kpi-grid','chart-grid','prod-card','bd-card'].forEach(id=>{
+    document.getElementById(id).style.display = '';
   });
+
+  renderAll();
 }
 
-function renderBDChart(bdData){
-  const typeMap={};
-  bdData.forEach(r=>{ typeMap[r.type]=(typeMap[r.type]||0)+r.downtime; });
-  const labels=Object.keys(typeMap);
-  const vals=Object.values(typeMap);
-  const colors=['#85B7EB','#F0997B','#97C459','#FAC775','#AFA9EC','#ED93B1','#D3D1C7'];
-  const ctx = document.getElementById('c-bd');
-  if(charts.bd){ charts.bd.destroy(); }
-  charts.bd = new Chart(ctx,{
-    type:'bar',
-    data:{labels,datasets:[{label:'Downtime (min)',data:vals,backgroundColor:colors.slice(0,labels.length),borderWidth:0}]},
-    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10},crossAlign:'far'}}}}
-  });
+function populateSelect(id, opts){
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  while(sel.options.length > 1) sel.remove(1);
+  opts.forEach(o=>{ const el=document.createElement('option'); el.value=el.textContent=o; sel.appendChild(el); });
+  if(cur) sel.value = cur;
 }
 
-function renderProdTable(data){
-  const tb = document.getElementById('prod-table');
-  tb.innerHTML = data.map(r=>`<tr>
-    <td>${r.date}</td><td>${r.shift}</td><td>${r.machine||'—'}</td>
-    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="${r.product}">${r.product.length>35?r.product.slice(0,33)+'…':r.product}</td>
-    <td>${r.supervisor}</td>
-    <td>${Math.round(r.target).toLocaleString()}</td>
-    <td>${r.actual.toLocaleString()}</td>
-    <td>${r.good.toLocaleString()}</td>
-    <td>${fmt(r.avail)}%</td><td>${fmt(r.perf)}%</td><td>${fmt(r.qual)}%</td>
-    <td>${oeeBadge(r.oee)}</td>
-    <td>${r.npt}</td>
-  </tr>`).join('');
+// ─── Filtering ───────────────────────────────────────────────────────────────
+function getVal(r, ...keys){ for(const k of keys){ if(r[k]!==undefined && r[k]!=='') return r[k]; } return ''; }
+function num(v){ const n=parseFloat(String(v).replace('%','')); return isNaN(n)?0:n; }
+function fmt(v,d=1){ return isNaN(v)?'—':Number(v).toFixed(d); }
+
+function filteredProd(){
+  const sh = document.getElementById('f-shift').value;
+  const mc = document.getElementById('f-machine').value;
+  const su = document.getElementById('f-supervisor').value;
+  const pr = document.getElementById('f-product').value;
+  return PROD.filter(r=>
+    (!sh || r['Shift']===sh) &&
+    (!mc || r['Machine']===mc) &&
+    (!su || r['Supervisor Name']===su) &&
+    (!pr || r['Product Criteria']===pr)
+  );
+}
+function filteredBD(){
+  const sh = document.getElementById('f-shift').value;
+  const mc = document.getElementById('f-machine').value;
+  return BD.filter(r=>(!sh||r['Shift']===sh)&&(!mc||r['Machine']===mc));
 }
 
-function renderBDTable(bdData){
-  const tb = document.getElementById('bd-table');
-  tb.innerHTML = bdData.map(r=>`<tr>
-    <td>${r.date}</td><td>${r.shift}</td><td>${r.machine}</td>
-    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;" title="${r.product}">${r.product.length>28?r.product.slice(0,26)+'…':r.product}</td>
-    <td>${r.supervisor}</td>
-    <td>${r.type}</td><td>${r.reason}</td>
-    <td><strong>${r.downtime}</strong></td>
-  </tr>`).join('');
-}
-
-function populateMachineFilter(){
-  const sel = document.getElementById('filter-machine');
-  const machines=[...new Set(RAW_PROD.map(r=>r.machine).filter(Boolean))].sort();
-  machines.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
-}
-
+// ─── Render all ──────────────────────────────────────────────────────────────
 function renderAll(){
-  const data = getFiltered();
-  const bdData = getBdFiltered();
-  renderKPIs(data);
-  renderOEEChart(data);
-  renderNPTChart(data);
-  renderBDChart(bdData);
-  renderProdTable(data);
-  renderBDTable(bdData);
+  const pd = filteredProd();
+  const bd = filteredBD();
+  renderKPIs(pd);
+  renderOEEChart(pd);
+  renderNPTChart(pd);
+  renderBDChart(bd);
+  renderProdTable(pd);
+  renderBDTable(bd);
 }
 
-populateMachineFilter();
-renderAll();
+// ─── KPIs ────────────────────────────────────────────────────────────────────
+function renderKPIs(pd){
+  if(!pd.length){ document.getElementById('kpi-grid').innerHTML='<p style="color:var(--text2);font-size:13px">No data for selected filters.</p>'; return; }
+
+  const avgOf = key => pd.reduce((s,r)=>s+num(r[key]),0)/pd.length;
+  const sumOf = key => pd.reduce((s,r)=>s+num(r[key]),0);
+
+  const oee  = avgOf('OEE%');
+  const avail= avgOf('Availability%');
+  const perf = avgOf('Performance%');
+  const qual = avgOf('Quality%');
+  const good = sumOf('Total Good Production (Pcs)');
+  const actual= sumOf('Actual Output (PCs)') || sumOf('Actual Output (Pcs)');
+  const npt  = sumOf('Total Unplanned Time (NPT) (Min.)');
+  const waste= sumOf('Total Wastage (Pcs)');
+
+  const oeeCls = oee>=65?'oee-good':oee>=40?'oee-warn':'oee-bad';
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Avg OEE</div><div class="kpi-value ${oeeCls}">${fmt(oee)}%</div><div class="kpi-sub">Target ≥ 65%</div></div>
+    <div class="kpi"><div class="kpi-label">Availability</div><div class="kpi-value">${fmt(avail)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Performance</div><div class="kpi-value">${fmt(perf)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Quality</div><div class="kpi-value">${fmt(qual)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Good output</div><div class="kpi-value">${Math.round(good).toLocaleString()}</div><div class="kpi-sub">pcs</div></div>
+    <div class="kpi"><div class="kpi-label">Actual output</div><div class="kpi-value">${Math.round(actual).toLocaleString()}</div><div class="kpi-sub">pcs</div></div>
+    <div class="kpi"><div class="kpi-label">Total NPT</div><div class="kpi-value">${Math.round(npt)}</div><div class="kpi-sub">min</div></div>
+    <div class="kpi"><div class="kpi-label">Total wastage</div><div class="kpi-value">${Math.round(waste).toLocaleString()}</div><div class="kpi-sub">pcs</div></div>
+  `;
+  document.getElementById('prod-count').textContent = pd.length + ' entries';
+}
+
+// ─── OEE Chart ───────────────────────────────────────────────────────────────
+function renderOEEChart(pd){
+  const labels = pd.map(r=>{
+    const d = (r['Date']||'').toString().replace('/2026','');
+    const s = (r['Shift']||'').charAt(0);
+    return d+'·'+s;
+  });
+  const mk = (key,fallback) => pd.map(r=>num(r[key]||r[fallback]||0));
+  const avails = mk('Availability%');
+  const perfs  = pd.map(r=>Math.min(num(r['Performance%']||0), 150));
+  const quals  = mk('Quality%');
+  const oees   = mk('OEE%');
+
+  const ctx = document.getElementById('c-oee');
+  if(charts.oee) charts.oee.destroy();
+  charts.oee = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'Availability', data:avails, backgroundColor:'#3B82F6', borderWidth:0},
+      {label:'Performance',  data:perfs,  backgroundColor:'#22C55E', borderWidth:0},
+      {label:'Quality',      data:quals,  backgroundColor:'#F97316', borderWidth:0},
+      {label:'OEE', data:oees, type:'line', tension:.35, borderColor:'#8B5CF6', backgroundColor:'rgba(139,92,246,.1)', pointBackgroundColor:'#8B5CF6', pointRadius:4, borderWidth:2, fill:true},
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{min:0,max:160, ticks:{callback:v=>v+'%', font:{size:10}}, grid:{color:'#F0EEEA'}},
+        x:{ticks:{font:{size:9}, maxRotation:45, autoSkip:false}, grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ─── NPT Donut ───────────────────────────────────────────────────────────────
+function renderNPTChart(pd){
+  const nptMap = {
+    'Utility (Gas)': 'Gas',
+    'Utility (Electricity)': 'Electricity',
+    'Unavailable Order': 'No order',
+    'Raw Material Shortage': 'Material',
+    'Manpower Shortage': 'Manpower',
+    'QCO (Quick change over)': 'QCO',
+    'In Process Setup/Adjustment': 'Setup',
+    'Mechanical Breakdown': 'Mech. BD',
+    'Electrical Breakdown': 'Elec. BD',
+    'Others down time': 'Other'
+  };
+  const colors = ['#3B82F6','#22C55E','#F97316','#EF4444','#8B5CF6','#F59E0B','#14B8A6','#EC4899','#84CC16','#6B7280'];
+
+  const vals = Object.keys(nptMap).map(k=>pd.reduce((s,r)=>s+num(r[k]||0),0));
+  const labels = Object.values(nptMap);
+
+  // filter zeros
+  const filtered = labels.map((l,i)=>({l,v:vals[i],c:colors[i]})).filter(x=>x.v>0);
+
+  document.getElementById('npt-legend').innerHTML = filtered.map(x=>
+    `<div class="legend-item"><div class="legend-box" style="background:${x.c}"></div>${x.l}</div>`
+  ).join('');
+
+  const ctx = document.getElementById('c-npt');
+  if(charts.npt) charts.npt.destroy();
+  charts.npt = new Chart(ctx, {
+    type:'doughnut',
+    data:{
+      labels: filtered.map(x=>x.l),
+      datasets:[{data:filtered.map(x=>x.v), backgroundColor:filtered.map(x=>x.c), borderWidth:2, borderColor:'#fff'}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'58%',
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} min`}}}
+    }
+  });
+}
+
+// ─── Breakdown Chart ─────────────────────────────────────────────────────────
+function renderBDChart(bd){
+  const typeMap = {};
+  bd.forEach(r=>{
+    const t = r['Breakdown Type']||r['Breakdown Name']||'Unknown';
+    typeMap[t] = (typeMap[t]||0) + num(r['Downtime']||0);
+  });
+  const sorted = Object.entries(typeMap).sort((a,b)=>b[1]-a[1]);
+  const labels = sorted.map(x=>x[0]);
+  const vals   = sorted.map(x=>x[1]);
+  const colors = ['#EF4444','#F97316','#F59E0B','#22C55E','#3B82F6','#8B5CF6','#EC4899','#14B8A6'];
+
+  const ctx = document.getElementById('c-bd');
+  if(charts.bd) charts.bd.destroy();
+  charts.bd = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{data:vals, backgroundColor:colors.slice(0,labels.length), borderWidth:0}]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{font:{size:10}}, grid:{color:'#F0EEEA'}},
+        y:{ticks:{font:{size:10}}, grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ─── Tables ──────────────────────────────────────────────────────────────────
+function oeeBadge(v){
+  const n=num(v);
+  const cls = n>=65?'badge-g':n>=40?'badge-a':'badge-r';
+  return `<span class="badge ${cls}">${fmt(n)}%</span>`;
+}
+function truncate(s,n=32){ return s&&s.length>n?s.slice(0,n-1)+'…':s||'—'; }
+
+function renderProdTable(pd){
+  const tb = document.getElementById('prod-tbody');
+  if(!pd.length){ tb.innerHTML='<tr><td colspan="14" style="color:var(--text2);padding:16px">No production records</td></tr>'; return; }
+  tb.innerHTML = pd.map(r=>`<tr>
+    <td>${r['Date']||'—'}</td>
+    <td>${r['Shift']||'—'}</td>
+    <td>${r['Machine']||'—'}</td>
+    <td title="${r['Product Criteria']||''}">${truncate(r['Product Criteria'])}</td>
+    <td>${r['Supervisor Name']||'—'}</td>
+    <td style="font-family:'DM Mono',monospace">${Math.round(num(r['Shift Target (PCs)']||r['Shift Target (Pcs)'])).toLocaleString()}</td>
+    <td style="font-family:'DM Mono',monospace">${Math.round(num(r['Actual Output (PCs)']||r['Actual Output (Pcs)'])).toLocaleString()}</td>
+    <td style="font-family:'DM Mono',monospace">${Math.round(num(r['Total Good Production (Pcs)'])).toLocaleString()}</td>
+    <td>${fmt(num(r['Availability%']))}%</td>
+    <td>${fmt(num(r['Performance%']))}%</td>
+    <td>${fmt(num(r['Quality%']))}%</td>
+    <td>${oeeBadge(r['OEE%'])}</td>
+    <td>${Math.round(num(r['Total Unplanned Time (NPT) (Min.)']))}</td>
+    <td>${Math.round(num(r['Total Wastage (Pcs)']))}</td>
+  </tr>`).join('');
+}
+
+function renderBDTable(bd){
+  const tb = document.getElementById('bd-tbody');
+  document.getElementById('bd-count').textContent = bd.length + ' records';
+  if(!bd.length){ tb.innerHTML='<tr><td colspan="8" style="color:var(--text2);padding:16px">No breakdown records</td></tr>'; return; }
+  const typeColor = t=>{
+    if(/mechanical/i.test(t)) return 'badge-r';
+    if(/electrical/i.test(t)) return 'badge-a';
+    if(/planned/i.test(t)) return 'badge-b';
+    if(/material/i.test(t)) return 'badge-a';
+    return 'badge-g';
+  };
+  tb.innerHTML = bd.map(r=>`<tr>
+    <td>${r['Date']||'—'}</td>
+    <td>${r['Shift']||'—'}</td>
+    <td>${r['Machine']||'—'}</td>
+    <td title="${r['Product Criteria']||''}">${truncate(r['Product Criteria'])}</td>
+    <td>${r['Supervisor Name']||'—'}</td>
+    <td><span class="badge ${typeColor(r['Breakdown Type']||'')}">${truncate(r['Breakdown Type'],28)||'—'}</span></td>
+    <td>${r['Breakdown Name']||r['Reason']||'—'}</td>
+    <td style="font-family:'DM Mono',monospace;font-weight:500">${Math.round(num(r['Downtime']))}</td>
+  </tr>`).join('');
+}
+
+// ─── Error ───────────────────────────────────────────────────────────────────
+function showError(msg){
+  const el = document.getElementById('error-banner');
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'block';
+  document.getElementById('status-dot').style.background = '#ef4444';
+  document.getElementById('status-text').textContent = 'Error';
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+const savedUrl = localStorage.getItem(LS_KEY);
+if(savedUrl){
+  document.getElementById('script-url').value = savedUrl;
+  loadData();
+} else {
+  document.getElementById('loader').style.display = 'none';
+}
+
+// Auto-refresh every 5 minutes
+setInterval(()=>{ if(localStorage.getItem(LS_KEY)) loadData(); }, 5*60*1000);
 </script>
+</body>
+</html>
